@@ -1,0 +1,46 @@
+observai has been deployed to namespace "{{ .Release.Namespace }}".
+
+Services (in-cluster DNS):
+  gateway    -> {{ include "observai.gateway.fullname" . }}:{{ .Values.gateway.service.port }}
+  inference  -> {{ include "observai.inference.fullname" . }}:{{ .Values.inference.service.port }}
+{{- if .Values.ollama.enabled }}
+  ollama     -> {{ include "observai.ollama.fullname" . }}:{{ .Values.ollama.service.port }}
+{{- end }}
+{{- if .Values.redis.enabled }}
+  redis      -> {{ include "observai.redis.fullname" . }}:{{ .Values.redis.service.port }}
+{{- end }}
+{{- if .Values.otel.enabled }}
+  collector  -> {{ include "observai.collector.fullname" . }}:4318 (OTLP/HTTP)
+{{- end }}
+{{- if .Values.loadgen.enabled }}
+
+Load generator is ON. Watch the live chat:
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "observai.loadgen.fullname" . }} -f
+Pause/resume load:
+  kubectl -n {{ .Release.Namespace }} scale deploy/{{ include "observai.loadgen.fullname" . }} --replicas=0
+{{- end }}
+
+Next steps:
+
+1) Reach the gateway (ClusterIP, so port-forward for testing):
+     kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "observai.gateway.fullname" . }} {{ .Values.gateway.service.port }}:{{ .Values.gateway.service.port }}
+     curl localhost:{{ .Values.gateway.service.port }}/health
+
+{{- if .Values.ollama.enabled }}
+
+2) First start is SLOW: the ollama pod stays in Init while it downloads
+   "{{ .Values.ollama.model }}" (~2GB). Watch it:
+     kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "observai.ollama.fullname" . }} -c pull-model -f
+{{- end }}
+
+{{- if .Values.otel.enabled }}
+{{- if not .Values.dynatrace.createSecret }}
+
+3) The Collector needs a Dynatrace credential Secret named
+   "{{ include "observai.dynatrace.secretName" . }}". If you haven't created it, do:
+     kubectl -n {{ .Release.Namespace }} create secret generic {{ include "observai.dynatrace.secretName" . }} \
+       --from-literal=DT_OTLP_ENDPOINT='https://<env-id>.live.dynatrace.com/api/v2/otlp' \
+       --from-literal=DT_API_TOKEN='dt0c01.XXXX.XXXX'
+   Until then the collector pod will not start.
+{{- end }}
+{{- end }}

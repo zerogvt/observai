@@ -1,0 +1,71 @@
+{{- if .Values.loadgen.enabled }}
+{{- $target := .Values.loadgen.target | default (printf "http://%s:%d/prompt" (include "observai.gateway.fullname" .) (int .Values.gateway.service.port)) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "observai.loadgen.fullname" . }}-config
+  labels:
+    {{- include "observai.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/name: loadgen
+    app.kubernetes.io/component: loadgen
+data:
+  SERVICE_NAME: "loadgen"
+  ENV: "production"
+  TARGET_URL: {{ $target | quote }}
+  TASK: {{ .Values.loadgen.task | quote }}
+  INTERVAL_SECONDS: {{ .Values.loadgen.intervalSeconds | quote }}
+  INTERVAL_JITTER_SECONDS: {{ .Values.loadgen.intervalJitterSeconds | quote }}
+  REQUEST_TIMEOUT_S: {{ .Values.loadgen.requestTimeoutS | quote }}
+  HISTORY_TURNS: {{ .Values.loadgen.historyTurns | quote }}
+  MAX_INPUT_CHARS: {{ .Values.loadgen.maxInputChars | quote }}
+  RESET_AFTER_TURNS: {{ .Values.loadgen.resetAfterTurns | quote }}
+  LOG_RESPONSES: {{ .Values.loadgen.logResponses | quote }}
+  RESPONSE_LOG_CHARS: {{ .Values.loadgen.responseLogChars | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "observai.loadgen.fullname" . }}
+  labels:
+    {{- include "observai.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/name: loadgen
+    app.kubernetes.io/component: loadgen
+spec:
+  replicas: {{ .Values.loadgen.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loadgen
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: loadgen
+  template:
+    metadata:
+      labels:
+        {{- include "observai.commonLabels" . | nindent 8 }}
+        app.kubernetes.io/name: loadgen
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: loadgen
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loadgen
+          image: "{{ .Values.images.loadgen.repository }}:{{ .Values.images.loadgen.tag }}"
+          imagePullPolicy: {{ .Values.images.loadgen.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "observai.loadgen.fullname" . }}-config
+          resources:
+            {{- toYaml .Values.loadgen.resources | nindent 12 }}
+          # No ports/probes: a worker that produces traffic, not a server.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+{{- end }}

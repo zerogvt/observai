@@ -1,0 +1,158 @@
+# Default values for the observai chart.
+# Everything is namespaced by the Helm release namespace; install with:
+#   helm install observai ./observai -n observai --create-namespace
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Container images. gateway/inference are the ones you build locally; the
+# others are upstream. Pin the upstream tags for reproducibility in real use.
+images:
+  gateway:
+    repository: observai-gateway
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  inference:
+    repository: observai-inference
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  collector:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  ollama:
+    repository: ollama/ollama
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  redis:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  loadgen:
+    repository: observai-loadgen
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+# Master switch for telemetry. When true, gateway+inference export OTLP and the
+# Collector is deployed. When false, no Collector, and OTEL_ENABLED=false.
+otel:
+  enabled: true
+
+# Dynatrace credential handling. The token is NEVER meant to live in a committed
+# values file. Preferred: create the Secret out-of-band and set existingSecret.
+#   kubectl -n observai create secret generic observai-dynatrace \
+#     --from-literal=DT_OTLP_ENDPOINT='https://<env-id>.live.dynatrace.com/api/v2/otlp' \
+#     --from-literal=DT_API_TOKEN='dt0c01.XXXX.XXXX'
+dynatrace:
+  existingSecret: ""     # name of a pre-created Secret (keys: DT_OTLP_ENDPOINT, DT_API_TOKEN)
+  createSecret: false    # if true, create the Secret from the values below (use --set, don't commit)
+  endpoint: ""
+  apiToken: ""
+
+gateway:
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8000
+  webConcurrency: 2
+  # Timeout chain for slow (CPU) model calls: inferenceTimeoutS < gunicornTimeout.
+  # inferenceTimeoutS is how long the gateway waits on inference; gunicornTimeout
+  # must exceed it or gunicorn kills the worker first. Raised from 30/60 because
+  # llama3.2 on CPU regularly needs more than 30s, which surfaced as 504s.
+  gunicornTimeout: 180
+  inferenceTimeoutS: 120
+  rateLimit:
+    default: "60 per minute"
+    prompt: "10 per minute"
+  maxInputChars: 20000
+  allowedTasks: "summarize,chat,classify,extract"
+  oversightConfidenceFloor: "0.6"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+inference:
+  replicas: 1
+  service:
+    port: 8001
+  webConcurrency: 2
+  gunicornTimeout: 180       # must exceed ollamaTimeoutS
+  ollamaTimeoutS: 120
+  maxOutputTokens: 512
+  temperature: "0.7"
+  confidenceReviewFloor: "0.6"
+  # Leave empty to auto-target the in-chart Ollama Service. Set this if Ollama
+  # runs elsewhere (and set ollama.enabled=false).
+  ollamaUrl: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+collector:
+  replicas: 1
+  memoryLimiterMiB: 400      # keep below the memory limit below
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+redis:
+  enabled: true              # false -> gateway uses memory:// (only correct at replicas=1)
+  service:
+    port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+ollama:
+  enabled: true
+  model: "llama3.2"
+  service:
+    port: 11434
+  persistence:
+    size: 10Gi
+    storageClass: ""         # "" = cluster default StorageClass
+  resources:
+    requests:
+      cpu: "1"
+      memory: 4Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+# Synthetic load generator. Opt-in — a chart shouldn't hammer your services by
+# default. Enable for demos: --set loadgen.enabled=true
+loadgen:
+  enabled: false
+  replicas: 1
+  target: ""               # empty -> auto-target the in-chart gateway /prompt
+  task: "chat"
+  intervalSeconds: 20
+  intervalJitterSeconds: 5
+  requestTimeoutS: 240     # sits above the gateway's gunicornTimeout
+  historyTurns: 6
+  maxInputChars: 8000
+  resetAfterTurns: 20
+  logResponses: true       # log replies so `kubectl logs -f` shows the chat
+  responseLogChars: 500
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

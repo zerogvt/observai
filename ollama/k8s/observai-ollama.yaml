@@ -1,0 +1,179 @@
+# observai — Ollama (local LLM backend) serving llama3.2.
+# The Service is named "ollama" on 11434 to match the inference ConfigMap's
+# OLLAMA_URL (http://ollama:11434).
+#
+# The model is pulled by an init container into a PersistentVolume, so the main
+# container serves from it and pod restarts don't re-download. FIRST START IS
+# SLOW: the init container downloads ~2GB before the pod becomes ready.
+#
+# Apply with:  kubectl apply -f observai-ollama.yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observai
+  labels:
+    app.kubernetes.io/part-of: observai
+---
+# Persistent storage for downloaded models (~2GB for llama3.2, room for more).
+# Uses the cluster's default StorageClass — a default StorageClass must exist
+# (kind/minikube/most managed clusters provide one).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: observai-ollama-models
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: llm-backend
+    app.kubernetes.io/part-of: observai
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observai-ollama
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: llm-backend
+    app.kubernetes.io/part-of: observai
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate): the model PVC is ReadWriteOnce, so only one
+  # pod can mount it at a time. Recreate tears down the old pod before starting
+  # the new one, avoiding a mount deadlock during rollouts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ollama
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ollama
+        app.kubernetes.io/component: llm-backend
+        app.kubernetes.io/part-of: observai
+    spec:
+      # Ollama needs to write to its model dir and manage GPU/CPU runtimes, so
+      # we don't force readOnlyRootFilesystem / non-root here (that would need
+      # extra HOME/OLLAMA_MODELS + fsGroup wiring and often breaks the image).
+      # Light hardening only.
+      terminationGracePeriodSeconds: 30
+
+      initContainers:
+        # Pull llama3.2 into the shared volume before the serving container
+        # starts. Runs a temporary ollama daemon just long enough to pull, then
+        # stops it. Idempotent: if the model is already in the volume, the pull
+        # is a quick no-op.
+        - name: pull-model
+          image: ollama/ollama:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OLLAMA_HOST
+              value: "127.0.0.1:11434"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              ollama serve &
+              pid=$!
+              echo "waiting for the ollama daemon to come up..."
+              until ollama list >/dev/null 2>&1; do sleep 1; done
+              echo "pulling llama3.2 (no-op if already present in the volume)..."
+              ollama pull llama3.2
+              echo "pull complete; stopping temporary daemon"
+              kill "$pid" 2>/dev/null || true
+              wait "$pid" 2>/dev/null || true
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          imagePullPolicy: IfNotPresent
+          # Default entrypoint runs `ollama serve`. OLLAMA_HOST must be 0.0.0.0
+          # or Ollama binds to 127.0.0.1 only and the Service can't reach it.
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+          ports:
+            - name: http
+              containerPort: 11434
+          resources:
+            # CPU inference for a 3B model. Tune to your hardware — on a small
+            # local cluster you may need to lower these; for real throughput,
+            # add a GPU (see the note at the bottom).
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+          # The model is already on disk (init container pulled it), so the
+          # server itself starts quickly; these probes just confirm it's up.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24    # up to ~2min grace for a cold server start
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: observai-ollama-models
+---
+# Named "ollama" so the inference service reaches it at http://ollama:11434,
+# exactly as its ConfigMap expects.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: ollama
+    app.kubernetes.io/component: llm-backend
+    app.kubernetes.io/part-of: observai
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ollama
+  ports:
+    - name: http
+      port: 11434
+      targetPort: http
+      protocol: TCP

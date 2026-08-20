@@ -1,0 +1,185 @@
+# observai — OpenTelemetry Collector: complete manifest set.
+# Receives OTLP from the gateway + inference services and forwards to Dynatrace.
+#
+# BEFORE APPLYING: create the Dynatrace credential as a Secret (kept out of this
+# file on purpose, so the token never lands in git):
+#
+#   kubectl -n observai create secret generic observai-dynatrace \
+#     --from-literal=DT_OTLP_ENDPOINT='https://<env-id>.live.dynatrace.com/api/v2/otlp' \
+#     --from-literal=DT_API_TOKEN='dt0c01.XXXX.XXXX'
+#
+# (The namespace below can be applied first if it doesn't exist yet.)
+# Then:  kubectl apply -f observai-collector.yaml
+
+# The Collector pipeline config, mounted into the container as a file. Env
+# placeholders (${env:...}) are filled from the observai-dynatrace Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observai-otel-collector-config
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-otel-collector
+    app.kubernetes.io/component: collector
+    app.kubernetes.io/part-of: observai
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      # Guards against OOM under load; keep limit_mib below the container
+      # memory limit (512Mi here) with headroom. Must run first in each pipeline.
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 400
+        spike_limit_mib: 100
+      batch:
+        timeout: 5s
+        send_batch_size: 1024
+      # Dynatrace expects DELTA temporality for OTLP metrics; the SDK default is
+      # CUMULATIVE. This converts it (and is why we use the contrib image).
+      cumulativetodelta: {}
+
+    exporters:
+      otlphttp/dynatrace:
+        endpoint: ${env:DT_OTLP_ENDPOINT}
+        headers:
+          Authorization: "Api-Token ${env:DT_API_TOKEN}"
+      # One-line summary of what's flowing, to the pod logs. Named "logging" in
+      # older Collector versions.
+      debug:
+        verbosity: basic
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/dynatrace, debug]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, cumulativetodelta, batch]
+          exporters: [otlphttp/dynatrace, debug]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observai-otel-collector
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-otel-collector
+    app.kubernetes.io/component: collector
+    app.kubernetes.io/part-of: observai
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: observai-otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: observai-otel-collector
+        app.kubernetes.io/component: collector
+        app.kubernetes.io/part-of: observai
+      annotations:
+        # Roll the pods automatically when the config changes. Update this
+        # value (or use `kubectl rollout restart`) after editing the ConfigMap,
+        # since a mounted ConfigMap change alone doesn't restart the process.
+        observai.config/revision: "1"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: collector
+          # contrib image includes the cumulativetodelta + memory_limiter
+          # processors. Pin a specific version for reproducibility in real use.
+          image: otel/opentelemetry-collector-contrib:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--config=/etc/otel/config.yaml"]
+          # Dynatrace endpoint + token come from the Secret you create out-of-band.
+          envFrom:
+            - secretRef:
+                name: observai-collector
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: health
+              containerPort: 13133
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: observai-otel-collector-config
+---
+# Named "otel-collector" to match the OTEL_EXPORTER_OTLP_ENDPOINT the gateway
+# and inference ConfigMaps already point at (http://otel-collector:4318).
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-otel-collector
+    app.kubernetes.io/component: collector
+    app.kubernetes.io/part-of: observai
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: observai-otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP

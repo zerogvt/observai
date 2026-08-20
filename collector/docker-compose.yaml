@@ -1,0 +1,22 @@
+# Runs the OpenTelemetry Collector locally. The contrib image is used because
+# it includes the cumulativetodelta processor (the core image does not).
+#
+#   docker compose up        # foreground, watch the logs while testing
+#   docker compose up -d     # background
+#   docker compose logs -f   # follow Collector logs (the debug exporter prints here)
+#   docker compose down
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel/config.yaml:ro
+    env_file:
+      - .env
+    ports:
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP  <- gateway + inference export here
+      - "13133:13133"   # health_check extension
+    restart: unless-stopped

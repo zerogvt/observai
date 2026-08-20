@@ -1,0 +1,92 @@
+# observai — load generator: complete manifest set.
+# Generates constant conversational load against the gateway so there's live
+# traffic to watch in Dynatrace. No Service and no probes: it's a worker that
+# produces traffic, not a server. Scale load via `replicas` below.
+#
+# Apply with:  kubectl apply -f observai-loadgen.yaml
+# Turn load off:  kubectl -n observai scale deploy/observai-loadgen --replicas=0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observai-loadgen-config
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-loadgen
+    app.kubernetes.io/component: loadgen
+    app.kubernetes.io/part-of: observai
+data:
+  SERVICE_NAME: "loadgen"
+  ENV: "production"
+  # Target the gateway Service (full pipeline). Point at
+  # http://observai-inference:8001/infer to load inference directly and bypass
+  # the gateway's rate limit.
+  TARGET_URL: "http://observai-gateway:8000/prompt"
+  TASK: "chat"
+  # Log the model's replies so you can watch the chat live via `kubectl logs -f`.
+  # Set to "false" for quiet, high-volume load.
+  LOG_RESPONSES: "true"
+  RESPONSE_LOG_CHARS: "500"
+  INTERVAL_SECONDS: "260"
+  INTERVAL_JITTER_SECONDS: "5"
+  REQUEST_TIMEOUT_S: "240"
+  HISTORY_TURNS: "6"
+  MAX_INPUT_CHARS: "8000"
+  RESET_AFTER_TURNS: "20"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observai-loadgen
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-loadgen
+    app.kubernetes.io/component: loadgen
+    app.kubernetes.io/part-of: observai
+spec:
+  # One generator. Increase for more load (each replica runs its own
+  # conversation). At the default 20s cadence, remember the gateway's 10/min
+  # prompt limit: a few replicas will start drawing 429s.
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: observai-loadgen
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: observai-loadgen
+        app.kubernetes.io/component: loadgen
+        app.kubernetes.io/part-of: observai
+    spec:
+      # loadgen handles SIGTERM (stops after the current cycle), so the default
+      # grace period is plenty.
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loadgen
+          image: observai-loadgen:0.1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: observai-loadgen-config
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          # No ports and no probes: nothing connects to this pod, and it has no
+          # HTTP endpoint to health-check. If the process exits, the container
+          # exits and Kubernetes restarts it.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

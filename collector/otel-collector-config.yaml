@@ -1,0 +1,55 @@
+# OpenTelemetry Collector config: receive OTLP from the gateway + inference
+# services, forward to Dynatrace.
+#
+# The apps export OTLP/HTTP to this Collector on :4318 with no auth. The
+# Collector holds the Dynatrace credential and handles Dynatrace-specific
+# concerns, so the app code stays backend-agnostic.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317   # OTLP/gRPC (not used by our Python apps, but free to leave on)
+      http:
+        endpoint: 0.0.0.0:4318   # OTLP/HTTP  <- our services send here
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+  # --- Dynatrace gotcha, handled here ---
+  # Dynatrace's OTLP metric ingest expects DELTA temporality. The OpenTelemetry
+  # SDK emits CUMULATIVE by default, which Dynatrace can reject or misread, so
+  # we convert in the metrics pipeline below. (Alternative: set
+  # OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta on the app instead.)
+  cumulativetodelta: {}
+
+exporters:
+  otlphttp/dynatrace:
+    endpoint: ${env:DT_OTLP_ENDPOINT}
+    headers:
+      # NOTE the literal "Api-Token " prefix before the token value.
+      Authorization: "Api-Token ${env:DT_API_TOKEN}"
+
+  # Prints a one-line summary of what's flowing, to the Collector's own logs.
+  # Invaluable while wiring up. In older Collector versions this is named
+  # "logging" instead of "debug".
+  debug:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/dynatrace, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [cumulativetodelta, batch]
+      exporters: [otlphttp/dynatrace, debug]

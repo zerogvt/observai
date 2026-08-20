@@ -1,0 +1,242 @@
+# observai — gateway service: complete manifest set (+ Redis for rate limiting).
+# Ordered namespace -> config -> redis -> gateway so a single apply works.
+# Apply with:  kubectl apply -f observai-gateway.yaml
+#
+# Prerequisite: the gateway image must include the `redis` package (added to
+# requirements.txt), so rebuild it before deploying:
+#     docker build -t observai-gateway:0.1.0 gateway/
+---
+
+# Non-secret configuration for the gateway. Keys map 1:1 to the env vars read
+# by config.py / gunicorn.conf.py.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observai-gateway-config
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-gateway
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: observai
+data:
+  SERVICE_NAME: "gateway"
+  ENV: "production"
+  PORT: "8000"
+  WEB_CONCURRENCY: "5"
+  GUNICORN_TIMEOUT: "280"
+
+  # Points at the inference Service (same namespace) from the inference manifest.
+  INFERENCE_URL: "http://observai-inference:8001/infer"
+  INFERENCE_TIMEOUT_S: "240"
+
+  # OpenTelemetry -> Collector -> Dynatrace. Assumes an otel-collector Service
+  # in this namespace; set OTEL_ENABLED=false until that exists.
+  OTEL_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+
+  # Rate limiting. Redis-backed so the limit is enforced GLOBALLY across all
+  # workers and replicas — the whole reason Redis is in this file. With plain
+  # memory:// the limit would be per-worker-per-pod and effectively meaningless
+  # once scaled.
+  RATE_LIMIT_DEFAULT: "60 per minute"
+  RATE_LIMIT_PROMPT: "10 per minute"
+  RATE_LIMIT_STORAGE_URI: "redis://observai-redis:6379/0"
+
+  MAX_INPUT_CHARS: "20000"
+  ALLOWED_TASKS: "summarize,chat,classify,extract"
+  OVERSIGHT_CONFIDENCE_FLOOR: "0.6"
+---
+# Minimal Redis for rate-limit counters. Single replica, persistence disabled:
+# rate-limit windows are ephemeral by nature, so losing them on a restart just
+# resets the counters — acceptable. Do NOT use this instance for data you need
+# to keep.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observai-redis
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-redis
+    app.kubernetes.io/component: ratelimit-store
+    app.kubernetes.io/part-of: observai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: observai-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: observai-redis
+        app.kubernetes.io/component: ratelimit-store
+        app.kubernetes.io/part-of: observai
+    spec:
+      # Running as the redis user (uid 999) makes the official image's
+      # entrypoint skip its root-only chown, which keeps a read-only root fs happy.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          # Disable persistence — pure in-memory counter store.
+          args: ["--save", "", "--appendonly", "no"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: observai-redis
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-redis
+    app.kubernetes.io/component: ratelimit-store
+    app.kubernetes.io/part-of: observai
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: observai-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+---
+# Stable in-cluster address for the gateway. Kept ClusterIP (internal). To reach
+# it from outside, either port-forward for testing:
+#     kubectl -n observai port-forward svc/observai-gateway 8000:8000
+# or add an Ingress / switch type to LoadBalancer for a real entry point.
+apiVersion: v1
+kind: Service
+metadata:
+  name: observai-gateway
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-gateway
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: observai
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: observai-gateway
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observai-gateway
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-gateway
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: observai
+spec:
+  # Stateless (rate-limit state lives in Redis), so it scales cleanly.
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: observai-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: observai-gateway
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/part-of: observai
+    spec:
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: observai-gateway:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: observai-gateway-config
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 30
+            failureThreshold: 3
+          # /health has no downstream dependency, so readiness == "gateway is up".
+          # If inference is down, the gateway still serves and returns 502 on
+          # /prompt, which is the correct behavior for a front door.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

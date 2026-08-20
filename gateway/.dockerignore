@@ -1,0 +1,28 @@
+# Keep the build context small and ensure secrets / dev-only files never get
+# baked into the image.
+
+# Secrets — never copy real env files into an image
+.env
+.env.*
+!.env.example
+
+# Tests and dev tooling (not needed at runtime)
+tests/
+pytest.ini
+requirements-dev.txt
+mock_inference.py
+
+# Python caches / virtualenvs
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Docs / VCS / editor noise
+README.md
+.git/
+.gitignore
+.idea/
+.vscode/

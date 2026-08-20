@@ -1,0 +1,176 @@
+# observai — inference service: complete manifest set.
+# Apply order matters, so resources are ordered namespace -> config -> service -> deployment.
+# Apply with:  kubectl apply -f observai-inference.yaml
+# (On first apply the namespace is created in the same pass; if the API
+#  server ever complains about ordering, just run the command twice.)
+
+---
+# Non-secret configuration for the inference service. These keys map 1:1 to
+# the env vars read by config.py / gunicorn.conf.py. No secrets belong here —
+# the inference service sends OTLP to the Collector unauthenticated, so it
+# holds no Dynatrace token (that lives with the Collector).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observai-inference-config
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-inference
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: observai
+data:
+  SERVICE_NAME: "inference"
+  ENV: "production"
+  PORT: "8001"
+  WEB_CONCURRENCY: "4"
+  GUNICORN_TIMEOUT: "280"        # must exceed OLLAMA_TIMEOUT_S (see gunicorn.conf.py)
+
+  # OpenTelemetry -> Collector (which forwards to Dynatrace). Assumes an
+  # otel-collector Service in this namespace. Set OTEL_ENABLED=false until that
+  # Collector exists, or the SDK will log export failures (harmless, but noisy).
+  OTEL_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+
+  # Ollama. IMPORTANT: this must point at wherever Ollama actually runs. This
+  # placeholder assumes an in-cluster Service named "ollama" on 11434. Adjust
+  # to your setup (in-cluster Deployment, a node address, or an external host).
+  OLLAMA_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "llama3.2"
+  OLLAMA_TIMEOUT_S: "240"
+  MAX_OUTPUT_TOKENS: "512"
+  TEMPERATURE: "0.7"
+
+  CONFIDENCE_REVIEW_FLOOR: "0.6"
+---
+# Stable in-cluster address for the inference service. The gateway reaches it
+# at http://observai-inference:8001/infer (same namespace) — set the gateway's
+# INFERENCE_URL to exactly that when we build its manifest.
+apiVersion: v1
+kind: Service
+metadata:
+  name: observai-inference
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-inference
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: observai
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: observai-inference
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observai-inference
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: observai-inference
+    app.kubernetes.io/component: inference
+    app.kubernetes.io/part-of: observai
+spec:
+  # The real throughput ceiling is Ollama (it serializes generation), so extra
+  # replicas mainly buy availability + smooth rolling updates, not more model
+  # throughput against a single Ollama backend.
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: observai-inference
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: observai-inference
+        app.kubernetes.io/component: inference
+        app.kubernetes.io/part-of: observai
+    spec:
+      # Give in-flight model calls a moment to drain on shutdown. Keep this
+      # aligned with gunicorn's graceful_timeout; raise both if you expect very
+      # long generations to need to finish during a rollout.
+      terminationGracePeriodSeconds: 40
+
+      # Pod-level security context. The image already runs as uid 10001; this
+      # enforces non-root at the cluster level too (many clusters require it).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: inference
+          image: observai-inference:0.1.0
+          # For local clusters (kind/minikube) where you load the image
+          # manually, IfNotPresent avoids a doomed registry pull. Switch to a
+          # registry ref + Always for real deployments.
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8001
+
+          envFrom:
+            - configMapRef:
+                name: observai-inference-config
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          # Startup gate: allow up to ~60s for the app to come up before
+          # liveness starts judging it (covers OTel init, slow cold starts).
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 2
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+
+          # NOTE: /health returns 200 even when Ollama is unreachable (it only
+          # checks the Flask app is up, and reports Ollama status in the body).
+          # So readiness here means "the service is up", not "Ollama is ready".
+          # If you want to stop routing traffic when Ollama is down, add a
+          # dedicated readiness endpoint that fails on !ollama_reachable.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 2
+
+          # Container hardening. readOnlyRootFilesystem is why we mount a
+          # writable /tmp below — gunicorn writes worker heartbeat files there,
+          # and a read-only root would break worker boot without it.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}

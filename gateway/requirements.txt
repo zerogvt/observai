@@ -1,0 +1,18 @@
+Flask>=3.0,<4.0
+Flask-Limiter>=3.5,<4.0
+requests>=2.31,<3.0
+
+# Backing store for Flask-Limiter's redis:// storage. Required for correct
+# rate limiting once the gateway runs with >1 worker or >1 replica (in-memory
+# counters aren't shared). Not needed if you stick to memory:// storage.
+redis>=5.0,<6.0
+
+# OpenTelemetry (API + SDK + OTLP/HTTP exporter + auto-instrumentation)
+opentelemetry-api>=1.24
+opentelemetry-sdk>=1.24
+opentelemetry-exporter-otlp-proto-http>=1.24
+opentelemetry-instrumentation-flask>=0.45b0
+opentelemetry-instrumentation-requests>=0.45b0
+
+# Production WSGI server (don't ship Flask's dev server)
+gunicorn>=21.2
