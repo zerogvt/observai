@@ -64,6 +64,7 @@ def assign_request_id():
 
 @app.get("/health")
 def health():
+    log.info("==")
     return jsonify(status="ok", service=Config.SERVICE_NAME, version=Config.SERVICE_VERSION)
 
 
@@ -112,6 +113,7 @@ def prompt():
         # 4) Record AI cost/quality signals on the span if the inference
         #    service reported them. (Inference owns the real metrics; the
         #    gateway just annotates the trace for end-to-end visibility.)
+        log.info(result)
         for key, attr in (
             ("tokens_in", "observai.tokens.in"),
             ("tokens_out", "observai.tokens.out"),
@@ -120,6 +122,7 @@ def prompt():
             ("confidence", "observai.confidence"),
         ):
             if key in result:
+                log.info(f"setting {attr}={result[key]}")
                 span.set_attribute(attr, result[key])
 
         # 5) Human-oversight hook.

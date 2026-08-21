@@ -78,6 +78,8 @@ def infer():
             # to a 502 for the end user.
             return jsonify(error="inference_failed", message=str(e), request_id=request_id), 503
 
+        log.info(result)
+
         # --- Confidence proxy + review flag ---
         c = conf.estimate(result)
 

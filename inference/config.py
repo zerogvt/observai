@@ -37,4 +37,4 @@ class Config:
     # The model itself doesn't return a calibrated confidence. We compute a
     # cheap, *explainable* proxy here and let the eval service supply a real
     # quality score later. This floor decides when we ask for human review.
-    CONFIDENCE_REVIEW_FLOOR = float(os.getenv("CONFIDENCE_REVIEW_FLOOR", "0.6"))
+    CONFIDENCE_REVIEW_FLOOR = float(os.getenv("CONFIDENCE_REVIEW_FLOOR", "0.7"))

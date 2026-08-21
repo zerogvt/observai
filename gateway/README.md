@@ -51,7 +51,6 @@ curl -s localhost:8000/prompt \
   -d '{"task":"summarize","input":"x","options":{"force_low_confidence":true}}' | jq
 ```
 
-## The three things you asked for, and where they live
 
 **Request-level tracing** — `tracing.py` sets up OpenTelemetry and
 auto-instruments Flask (every inbound request becomes a span) and outbound

@@ -19,7 +19,7 @@ class Config:
     # the logs, so you can watch the chat live with `kubectl logs -f`. Turn off
     # for quiet, high-volume load.
     LOG_RESPONSES = _bool("LOG_RESPONSES", False)
-    RESPONSE_LOG_CHARS = int(os.getenv("RESPONSE_LOG_CHARS", "500"))
+    RESPONSE_LOG_CHARS = int(os.getenv("RESPONSE_LOG_CHARS", "2500"))
 
     # Where to send prompts. Default: the gateway's /prompt (full pipeline).
     # Point at the inference service's /infer to bypass the gateway (and its
@@ -42,4 +42,4 @@ class Config:
     # start a fresh conversation every so often so load stays varied and bounded.
     HISTORY_TURNS = int(os.getenv("HISTORY_TURNS", "6"))
     MAX_INPUT_CHARS = int(os.getenv("MAX_INPUT_CHARS", "8000"))
-    RESET_AFTER_TURNS = int(os.getenv("RESET_AFTER_TURNS", "20"))
+    RESET_AFTER_TURNS = int(os.getenv("RESET_AFTER_TURNS", "10"))

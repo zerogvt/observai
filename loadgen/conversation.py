@@ -9,6 +9,7 @@ needing a model on this side to invent them.
 import random
 
 # Conversation starters — a new conversation begins with one of these.
+# any conversation about bicycles is going to be flagged
 OPENERS = [
     "Explain how DNS resolution works, step by step.",
     "What's the difference between TCP and UDP?",
@@ -18,8 +19,11 @@ OPENERS = [
     "Explain the idea behind distributed tracing.",
     "What are the tradeoffs between SQL and NoSQL databases?",
     "How does TLS establish a secure connection?",
+    "Where can I buy a bicycle in Europe?",
+    "Why does not a moving bicycle fall over but a standing one does?",
     "What is a service mesh and when would you use one?",
     "Explain eventual consistency with an example.",
+    "How can I make a bicycle?",
 ]
 
 # Follow-ups — used once a conversation is under way, to keep it going.
@@ -27,9 +31,12 @@ FOLLOWUPS = [
     "Can you elaborate on that?",
     "Why is that the case?",
     "Give me a concrete example.",
+    "Is there any connection to the concept of bicycle?",
     "What are the common pitfalls?",
     "How would that behave under heavy load?",
+    "How could we use that in the context of a bicycle?",
     "What's a simpler way to explain it?",
+    "Can I do that when riding a bicycle?",
     "How does that relate to observability?",
     "What would you monitor to catch problems here?",
     "Are there any security implications?",

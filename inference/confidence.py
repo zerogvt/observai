@@ -33,12 +33,16 @@ def estimate(result: dict) -> dict:
         return _finalize(score, signals)
 
     if result.get("done_reason") == "length":
-        score -= 0.25
+        score -= 0.45
         signals.append("output truncated at token cap")
 
     if len(output) < 5:
-        score -= 0.2
+        score -= 0.40
         signals.append("output suspiciously short")
+
+    if "bicycle" in output:
+        score -= 0.60
+        signals.append("discussion about bicycles")
 
     return _finalize(score, signals)
 
