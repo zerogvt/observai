@@ -17,7 +17,7 @@ def test_health_reports_model_and_reachability(client):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["status"] == "ok"
-    assert body["model"] == "llama3.2"
+    assert body["model"] == "qwen:0.5b"
     assert body["ollama_reachable"] is True
 
 

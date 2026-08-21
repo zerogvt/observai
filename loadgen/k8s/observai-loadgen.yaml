@@ -27,7 +27,7 @@ data:
   # Set to "false" for quiet, high-volume load.
   LOG_RESPONSES: "true"
   RESPONSE_LOG_CHARS: "500"
-  INTERVAL_SECONDS: "260"
+  INTERVAL_SECONDS: "30"
   INTERVAL_JITTER_SECONDS: "5"
   REQUEST_TIMEOUT_S: "240"
   HISTORY_TURNS: "6"

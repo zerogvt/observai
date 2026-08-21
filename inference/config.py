@@ -13,14 +13,14 @@ def _bool(name: str, default: bool) -> bool:
 
 class Config:
     # --- Service identity (shows up in traces) ---
-    SERVICE_NAME = os.getenv("SERVICE_NAME", "inference")
+    SERVICE_NAME = os.getenv("SERVICE_NAME", "observai_inference")
     SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.1.0")
     ENV = os.getenv("ENV", "local")
     PORT = int(os.getenv("PORT", "8001"))
 
     # --- Ollama (local LLM) ---
     OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen:0.5b")
     OLLAMA_TIMEOUT_S = float(os.getenv("OLLAMA_TIMEOUT_S", "120"))
     # Cap output length; also used by the confidence proxy (a response that
     # hits this cap was truncated, which we treat as lower confidence).

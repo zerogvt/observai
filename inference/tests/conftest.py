@@ -8,7 +8,7 @@ this runs first.
 import os
 
 os.environ.setdefault("OTEL_ENABLED", "false")
-os.environ.setdefault("OLLAMA_MODEL", "llama3.2")
+os.environ.setdefault("OLLAMA_MODEL", "qwen:0.5b")
 os.environ.setdefault("CONFIDENCE_REVIEW_FLOOR", "0.6")
 
 import pytest
@@ -58,7 +58,7 @@ def make_result():
         tokens_out=11,
         latency_ms=12.3,
         tokens_per_sec=31.4,
-        model="llama3.2",
+        model="qwen:0.5b",
     ):
         return {
             "output": output,

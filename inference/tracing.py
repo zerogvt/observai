@@ -81,16 +81,16 @@ def init_tracing(app):
 
     # The AI metrics you'll actually chart and alert on in Dynatrace.
     tokens_in_counter = meter.create_counter(
-        "ai.tokens.in", unit="1", description="Input/prompt tokens consumed"
+        "observai.tokens.in", unit="1", description="Input/prompt tokens consumed"
     )
     tokens_out_counter = meter.create_counter(
-        "ai.tokens.out", unit="1", description="Output/generated tokens"
+        "observai.tokens.out", unit="1", description="Output/generated tokens"
     )
     latency_hist = meter.create_histogram(
-        "ai.inference.latency", unit="ms", description="End-to-end inference latency"
+        "observai.inference.latency", unit="ms", description="End-to-end inference latency"
     )
     requests_counter = meter.create_counter(
-        "ai.inference.requests", unit="1", description="Inference requests by task/outcome"
+        "observai.inference.requests", unit="1", description="Inference requests by task/outcome"
     )
 
     FlaskInstrumentor().instrument_app(app)

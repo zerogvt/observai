@@ -1,6 +1,6 @@
 apiVersion: v2
 name: observai
-description: AI observability portfolio stack — gateway + inference (Ollama/llama3.2), OpenTelemetry Collector to Dynatrace, and Redis for distributed rate limiting.
+description: AI observability portfolio stack — gateway + inference (Ollama/qwen:0.5b), OpenTelemetry Collector to Dynatrace, and Redis for distributed rate limiting.
 type: application
 # Chart version — bump on chart changes.
 version: 0.1.0

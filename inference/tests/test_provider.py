@@ -18,7 +18,7 @@ def _ollama_response(
     eval_count=10,
     eval_duration=500_000_000,  # ns -> 0.5s -> 20 tok/s
     done_reason="stop",
-    model="llama3.2",
+    model="qwen:0.5b",
 ):
     resp = MagicMock()
     resp.raise_for_status.return_value = None
@@ -43,7 +43,7 @@ def test_generate_parses_response(mock_post):
     assert out["tokens_in"] == 20
     assert out["tokens_out"] == 10
     assert out["done_reason"] == "stop"
-    assert out["model"] == "llama3.2"
+    assert out["model"] == "qwen:0.5b"
     # 10 tokens over 0.5s == 20 tok/s
     assert out["tokens_per_sec"] == pytest.approx(20.0, abs=0.1)
     assert isinstance(out["latency_ms"], float) and out["latency_ms"] >= 0

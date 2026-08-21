@@ -2,7 +2,7 @@
 
 The service that actually calls the model. The gateway forwards a validated
 request here; this service builds the prompt, calls **local Ollama
-(llama3.2)**, computes the AI observability signals, and returns them in the
+(qwen:0.5b)**, computes the AI observability signals, and returns them in the
 contract the gateway expects.
 
 Because the model is local, **`cost_usd` is always 0.0** — the meaningful
@@ -29,7 +29,7 @@ inference/
 ```json
 {
   "output": "...",
-  "model": "llama3.2",
+  "model": "qwen:0.5b",
   "tokens_in": 18,
   "tokens_out": 11,
   "cost_usd": 0.0,
@@ -46,7 +46,7 @@ inference/
 
 ```bash
 # 1) install + start Ollama, then pull the model
-ollama pull llama3.2
+ollama pull qwen:0.5b
 ollama serve            # if not already running; default port 11434
 
 # 2) the inference service

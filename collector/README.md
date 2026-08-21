@@ -52,8 +52,8 @@ Dynatrace.
 
 - **Traces:** Distributed Traces / Services — look for `service.name`
   `gateway` and `inference`, and the `gateway → inference` call chain.
-- **Metrics:** Data Explorer / Metrics — search for `ai.tokens.in`,
-  `ai.tokens.out`, `ai.inference.latency`, `ai.inference.requests`.
+- **Metrics:** Data Explorer / Metrics — search for `observai.tokens.in`,
+  `observai.tokens.out`, `observai.inference.latency`, `observai.inference.requests`.
 - Allow up to ~10s: metrics export on a 10s interval, so they lag slightly.
 
 ## Gotchas baked into the config

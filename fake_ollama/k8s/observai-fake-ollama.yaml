@@ -1,0 +1,138 @@
+# observai — fake Ollama: a drop-in stand-in for the real LLM backend.
+#
+# WHY: the real ollama pod pulls ~2GB (qwen:0.5b) into a PVC on first start and
+# does CPU inference — slow to boot, slow to answer. This stub answers the two
+# endpoints the inference service actually calls (/api/tags, /api/chat) in
+# milliseconds, so you can iterate on gateway/inference/collector wiring, probes,
+# tracing and dashboards WITHOUT waiting on a real model.
+#
+# DROP-IN BY DESIGN: the Service below is named "ollama" on port 11434 — exactly
+# what the inference ConfigMap's OLLAMA_URL (http://ollama:11434) already expects.
+# So you run this *instead of* the real backend and change nothing else in
+# inference. It's an either/or: don't apply this and ollama/k8s/observai-ollama.yaml
+# at the same time — they both own the Service named "ollama".
+#
+# Prereq: the "observai" namespace must exist first:
+#     kubectl apply -f k8s/observai_ns.yaml
+#
+# Swap the real backend for the fake:
+#     kubectl -n observai delete -f ../../ollama/k8s/observai-ollama.yaml   # if running
+#     kubectl apply -f observai-fake-ollama.yaml
+#
+# Go back to the real backend:
+#     kubectl delete -f observai-fake-ollama.yaml
+#     kubectl apply -f ../../ollama/k8s/observai-ollama.yaml
+#
+# Build the image into minikube's daemon first (no registry needed):
+#     eval $(minikube docker-env)
+#     docker build -t observai-fake-ollama:0.1.0 ..
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observai-fake-ollama
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: fake-ollama
+    app.kubernetes.io/component: llm-backend
+    app.kubernetes.io/part-of: observai
+spec:
+  # Stateless stub, no PVC, so a normal RollingUpdate is fine (unlike the real
+  # ollama, which needs Recreate because of its ReadWriteOnce model volume).
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fake-ollama
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fake-ollama
+        app.kubernetes.io/component: llm-backend
+        app.kubernetes.io/part-of: observai
+    spec:
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fake-ollama
+          image: observai-fake-ollama:0.1.0
+          imagePullPolicy: IfNotPresent
+          # fake_ollama.py already binds 0.0.0.0:11434, so the Service can reach
+          # it (the same 0.0.0.0-vs-127.0.0.1 rule the real backend calls out).
+          ports:
+            - name: http
+              containerPort: 11434
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          # Probe /api/tags, NOT "/": this stub only implements /api/tags and
+          # /api/chat, so "/" returns 404 and an httpGet probe would treat that
+          # as a failure. /api/tags returns 200 and is what inference's own
+          # reachability ping hits anyway.
+          startupProbe:
+            httpGet:
+              path: /api/tags
+              port: http
+            periodSeconds: 2
+            failureThreshold: 15     # ~30s grace; Flask starts in ~1s in practice
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            # Writable scratch so readOnlyRootFilesystem doesn't bite if any lib
+            # wants /tmp. The app itself writes nothing.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# Named "ollama" on 11434 so it is a true drop-in: the inference service reaches
+# it at http://ollama:11434 exactly as its ConfigMap expects, with no change.
+#
+# If you'd rather run the fake ALONGSIDE the real backend (both at once), rename
+# this Service to e.g. "fake-ollama" and repoint inference's OLLAMA_URL at
+# http://fake-ollama:11434 instead.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: observai
+  labels:
+    app.kubernetes.io/name: fake-ollama
+    app.kubernetes.io/component: llm-backend
+    app.kubernetes.io/part-of: observai
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: fake-ollama
+  ports:
+    - name: http
+      port: 11434
+      targetPort: http
+      protocol: TCP

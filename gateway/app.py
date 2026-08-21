@@ -113,11 +113,11 @@ def prompt():
         #    service reported them. (Inference owns the real metrics; the
         #    gateway just annotates the trace for end-to-end visibility.)
         for key, attr in (
-            ("tokens_in", "ai.tokens.in"),
-            ("tokens_out", "ai.tokens.out"),
-            ("cost_usd", "ai.cost.usd"),
-            ("model", "ai.model"),
-            ("confidence", "ai.confidence"),
+            ("tokens_in", "observai.tokens.in"),
+            ("tokens_out", "observai.tokens.out"),
+            ("cost_usd", "observai.cost.usd"),
+            ("model", "observai.model"),
+            ("confidence", "observai.confidence"),
         ):
             if key in result:
                 span.set_attribute(attr, result[key])

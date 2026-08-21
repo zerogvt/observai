@@ -24,7 +24,7 @@ def test_prompt_happy_path(client, inference_response):
     body = resp.get_json()
     assert body["task"] == "summarize"
     assert body["request_id"]
-    assert body["result"]["model"] == "llama3.2"
+    assert body["result"]["model"] == "qwen:0.5b"
     assert body["oversight"]["flagged"] is False
 
 

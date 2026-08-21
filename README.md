@@ -39,7 +39,7 @@ client ─▶  gateway   ─────▶   inference   ─────▶  Ol
 |-----------|-------|------|
 | **observai-gateway** | Flask | Public entry point (`/prompt`), request rate limiting via Flask-Limiter, OTel tracing. |
 | **observai-inference** | Flask | Calls the local model, emits token / latency / confidence metrics plus OTel traces and metrics. |
-| **Ollama** | Ollama + llama3.2 | Local model backend. |
+| **Ollama** | Ollama + qwen:0.5b | Local model backend. |
 | **Redis** | Redis | Shared store backing distributed rate limiting. (not shown in above diagram)|
 | **OpenTelemetry Collector** | OTel Collector | OTLP receiver, `cumulativetodelta` processing for Dynatrace compatibility, OTLP/HTTP export to Dynatrace. |
 | **loadgen** | Python | Optional conversational load generator with graceful SIGTERM handling and a `LOG_RESPONSES` flag. |
@@ -90,15 +90,34 @@ kubectl apply -f gateway/k8s/observai-gateway.yaml
 kubectl apply -f collector/k8s/observai-collector.yaml
 ```
 
-5. **Send a prompt** through the gateway:
-To test the prompt you first need to expose Gateway port (easiest to do with kubectl [port-forward](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_port-forward/))
+5. Test Messages
 
-Then test with:
-   ```bash
-   curl -X POST http://<gateway-address>/prompt \
+**Send a prompt** to gateway:
+```
+kubectl port-forward service/observai-gateway 8000:8000 -n observai
+
+curl -X POST http://<gateway-address>/prompt \
      -H 'Content-Type: application/json' \
      -d '{"prompt": "Hello"}'
-   ```
+```
+
+**Send a prompt** to ollama:
+```
+kubectl port-forward service/ollama 11434:12434 -n observai
+
+curl -sS -X POST http://localhost:11434/api/chat   \
+-H 'Content-Type: application/json'   \
+-d '{"model":"qwen:0.5b","messages":[{"role":"user","content":"hello"}]}'
+```
+
+**Send a prompt** to inference:
+```
+kubectl port-forward service/observai-inference 8001:8001 -n observai
+
+curl -sS -X POST http://localhost:8001/infer   \
+-H 'Content-Type: application/json' \
+-d '{"task":"chat","input":"hello there", "request_id": "9f1c2e4a7b8d4f3a9c6e5d2b1a0f8e7c"}'
+```
 
 6. **Optionally enable loadgen** to generate continuous traffic and populate the dashboards.
 `kubectl apply -f loadgen/k8s/observai-loadgen.yaml`

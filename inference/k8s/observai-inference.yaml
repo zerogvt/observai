@@ -19,7 +19,7 @@ metadata:
     app.kubernetes.io/component: inference
     app.kubernetes.io/part-of: observai
 data:
-  SERVICE_NAME: "inference"
+  SERVICE_NAME: "observai_inference"
   ENV: "production"
   PORT: "8001"
   WEB_CONCURRENCY: "4"
@@ -35,7 +35,7 @@ data:
   # placeholder assumes an in-cluster Service named "ollama" on 11434. Adjust
   # to your setup (in-cluster Deployment, a node address, or an external host).
   OLLAMA_URL: "http://ollama:11434"
-  OLLAMA_MODEL: "llama3.2"
+  OLLAMA_MODEL: "qwen:0.5b"
   OLLAMA_TIMEOUT_S: "240"
   MAX_OUTPUT_TOKENS: "512"
   TEMPERATURE: "0.7"

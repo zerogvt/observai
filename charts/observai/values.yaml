@@ -58,7 +58,7 @@ gateway:
   # Timeout chain for slow (CPU) model calls: inferenceTimeoutS < gunicornTimeout.
   # inferenceTimeoutS is how long the gateway waits on inference; gunicornTimeout
   # must exceed it or gunicorn kills the worker first. Raised from 30/60 because
-  # llama3.2 on CPU regularly needs more than 30s, which surfaced as 504s.
+  # qwen:0.5b on CPU regularly needs more than 30s, which surfaced as 504s.
   gunicornTimeout: 180
   inferenceTimeoutS: 120
   rateLimit:
@@ -121,7 +121,7 @@ redis:
 
 ollama:
   enabled: true
-  model: "llama3.2"
+  model: "qwen:0.5b"
   service:
     port: 11434
   persistence:

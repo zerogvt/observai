@@ -1,4 +1,4 @@
-# observai — Ollama (local LLM backend) serving llama3.2.
+# observai — Ollama (local LLM backend) serving qwen:0.5b.
 # The Service is named "ollama" on 11434 to match the inference ConfigMap's
 # OLLAMA_URL (http://ollama:11434).
 #
@@ -8,14 +8,7 @@
 #
 # Apply with:  kubectl apply -f observai-ollama.yaml
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: observai
-  labels:
-    app.kubernetes.io/part-of: observai
----
-# Persistent storage for downloaded models (~2GB for llama3.2, room for more).
+# Persistent storage for downloaded models (~2GB for qwen:0.5b, room for more).
 # Uses the cluster's default StorageClass — a default StorageClass must exist
 # (kind/minikube/most managed clusters provide one).
 apiVersion: v1
@@ -67,7 +60,7 @@ spec:
       terminationGracePeriodSeconds: 30
 
       initContainers:
-        # Pull llama3.2 into the shared volume before the serving container
+        # Pull qwen:0.5b into the shared volume before the serving container
         # starts. Runs a temporary ollama daemon just long enough to pull, then
         # stops it. Idempotent: if the model is already in the volume, the pull
         # is a quick no-op.
@@ -85,8 +78,8 @@ spec:
               pid=$!
               echo "waiting for the ollama daemon to come up..."
               until ollama list >/dev/null 2>&1; do sleep 1; done
-              echo "pulling llama3.2 (no-op if already present in the volume)..."
-              ollama pull llama3.2
+              echo "pulling qwen:0.5b (no-op if already present in the volume)..."
+              ollama pull qwen:0.5b
               echo "pull complete; stopping temporary daemon"
               kill "$pid" 2>/dev/null || true
               wait "$pid" 2>/dev/null || true

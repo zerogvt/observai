@@ -12,7 +12,7 @@ def _bool(name: str, default: bool) -> bool:
 
 class Config:
     # --- Service identity (shows up in traces) ---
-    SERVICE_NAME = os.getenv("SERVICE_NAME", "gateway")
+    SERVICE_NAME = os.getenv("SERVICE_NAME", "observai_gateway")
     SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.1.0")
     ENV = os.getenv("ENV", "local")
 

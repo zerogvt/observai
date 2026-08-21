@@ -37,7 +37,6 @@ tracer = t.init_tracing(app)
 
 @app.get("/health")
 def health():
-    log.info("# # # # I am healthy")
     return jsonify(
         status="ok",
         service=Config.SERVICE_NAME,

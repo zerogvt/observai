@@ -66,7 +66,7 @@ def inference_response():
     def _make(confidence=0.92, output="a perfectly fine answer", needs_review=False, **extra):
         body = {
             "output": output,
-            "model": "llama3.2",
+            "model": "qwen:0.5b",
             "tokens_in": 18,
             "tokens_out": 11,
             "cost_usd": 0.0,
