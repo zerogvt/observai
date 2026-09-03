@@ -131,9 +131,15 @@ The stack is designed so that observability doubles as a governance surface:
 - **Portability** comes from OpenTelemetry: swapping the export backend doesn't require re-instrumenting the code.
 - **Compliance angle**: the same telemetry that answers "is it fast?" also feeds the questions frameworks like the EU AI Act and ISO/IEC 42001 care about — traceability of inputs and outputs, monitoring over time, and demonstrable operational control.
 
-## Status
+## Dynatrace Example Queries
 
-Active development / portfolio project, currently deployed and iterated.
+![Latency](docs/latency.png)
+
+![Tokens in/out](docs/tokens_in_out.png)
+
+![Flagged total](docs/flagged_total.png)
+
+![Total flagged errors](docs/total_flagged_errors.png)
 
 ## License
 

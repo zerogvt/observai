@@ -189,7 +189,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: gateway
-          image: observai-gateway:0.2.0
+          image: observai-gateway:0.2.1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

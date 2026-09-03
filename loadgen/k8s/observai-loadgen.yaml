@@ -27,8 +27,8 @@ data:
   # Set to "false" for quiet, high-volume load.
   LOG_RESPONSES: "true"
   RESPONSE_LOG_CHARS: "2500"
-  INTERVAL_SECONDS: "10"
-  INTERVAL_JITTER_SECONDS: "5"
+  INTERVAL_SECONDS: "2"
+  INTERVAL_JITTER_SECONDS: "3"
   REQUEST_TIMEOUT_S: "240"
   HISTORY_TURNS: "6"
   MAX_INPUT_CHARS: "8000"
@@ -69,7 +69,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: loadgen
-          image: observai-loadgen:0.1.5
+          image: observai-loadgen:0.2.1
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
