@@ -131,6 +131,10 @@ The stack is designed so that observability doubles as a governance surface:
 - **Portability** comes from OpenTelemetry: swapping the export backend doesn't require re-instrumenting the code.
 - **Compliance angle**: the same telemetry that answers "is it fast?" also feeds the questions frameworks like the EU AI Act and ISO/IEC 42001 care about — traceability of inputs and outputs, monitoring over time, and demonstrable operational control.
 
+## Demo-only confidence hack
+
+To make the `needs_review` / flagged-answer path easy to trigger for demos and screenshots, [`inference/confidence.py`](inference/confidence.py) contains a deliberate hack: any response whose output mentions "bicycle" gets an artificial confidence penalty, pushing it below the review floor and causing it to be flagged. This has nothing to do with real model quality — it's a cheap, reproducible way to induce a flagged answer on demand (e.g. "tell me about bicycles") so the oversight/flagging pipeline and the Dynatrace dashboards above have something to show. Remove this rule before using the confidence proxy for anything real.
+
 ## Dynatrace Example Queries
 
 ![Latency](docs/latency.png)
