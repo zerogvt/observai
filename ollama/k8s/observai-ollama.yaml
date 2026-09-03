@@ -80,6 +80,8 @@ spec:
               until ollama list >/dev/null 2>&1; do sleep 1; done
               echo "pulling qwen:0.5b (no-op if already present in the volume)..."
               ollama pull qwen:0.5b
+              echo "pulling samuser3/granite3.2-gemma3:1b (no-op if already present in the volume)..."
+              ollama pull samuser3/granite3.2-gemma3:1b
               echo "pull complete; stopping temporary daemon"
               kill "$pid" 2>/dev/null || true
               wait "$pid" 2>/dev/null || true

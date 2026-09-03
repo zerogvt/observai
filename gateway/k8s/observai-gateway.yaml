@@ -22,7 +22,8 @@ data:
   SERVICE_NAME: "observai_gateway"
   ENV: "production"
   PORT: "8000"
-  WEB_CONCURRENCY: "5"
+  # num workers
+  WEB_CONCURRENCY: "3"
   GUNICORN_TIMEOUT: "280"
 
   # Points at the inference Service (same namespace) from the inference manifest.
@@ -39,7 +40,7 @@ data:
   # memory:// the limit would be per-worker-per-pod and effectively meaningless
   # once scaled.
   RATE_LIMIT_DEFAULT: "60 per minute"
-  RATE_LIMIT_PROMPT: "10 per minute"
+  RATE_LIMIT_PROMPT: "5 per minute"
   RATE_LIMIT_STORAGE_URI: "redis://observai-redis:6379/0"
 
   MAX_INPUT_CHARS: "20000"
@@ -189,7 +190,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: gateway
-          image: observai-gateway:0.2.1
+          image: observai-gateway
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

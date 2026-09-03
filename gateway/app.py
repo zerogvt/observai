@@ -64,7 +64,6 @@ def assign_request_id():
 
 @app.get("/health")
 def health():
-    log.info("==")
     return jsonify(status="ok", service=Config.SERVICE_NAME, version=Config.SERVICE_VERSION)
 
 

@@ -104,7 +104,7 @@ spec:
 
       containers:
         - name: inference
-          image: observai-inference:0.1.4
+          image: observai-inference
           # For local clusters (kind/minikube) where you load the image
           # manually, IfNotPresent avoids a doomed registry pull. Switch to a
           # registry ref + Always for real deployments.

@@ -69,7 +69,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: loadgen
-          image: observai-loadgen:0.2.1
+          image: observai-loadgen
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
