@@ -1,7 +1,7 @@
 # observAI Dynatrace dashboard
 
-A Dynatrace **platform dashboard** (`version: 21`) built from the telemetry the observAI
-services actually emit.
+A Dynatrace **platform dashboard** built from the telemetry the observAI
+services emit.
 
 | Section | Audience | Tiles |
 |---|---|---|
