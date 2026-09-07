@@ -97,7 +97,7 @@ To make the `needs_review` / flagged-answer path easy to trigger for demos and s
 
 ![Flagged total](docs/flagged_total.png)
 
-![Total flagged errors](docs/total_flagged_errors.png)
+<img src="docs/total_flagged_errors.png" alt="Total flagged errors" width="68%">
 
 ## Dynatrace Sample Executive Dashboard
 
