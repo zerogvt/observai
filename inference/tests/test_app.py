@@ -11,14 +11,18 @@ from unittest.mock import patch
 from provider import InferenceError
 
 
-def test_health_reports_model_and_reachability(client):
-    with patch("app.ping", return_value=True):
-        resp = client.get("/health")
+def test_health_reports_model(client):
+    resp = client.get("/health")
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["status"] == "ok"
+    assert body["service"] == "observai_inference"
     assert body["model"] == "qwen:0.5b"
-    assert body["ollama_reachable"] is True
+    # /health deliberately does NOT probe Ollama: the ollama_reachable=ping()
+    # line is commented out in app.py so a liveness check can't be turned into
+    # an outbound call. If that line is restored, assert the field here again
+    # (and patch app.ping, so the test stays hermetic).
+    assert "ollama_reachable" not in body
 
 
 def test_infer_happy_path_returns_full_contract(client, normal_result):

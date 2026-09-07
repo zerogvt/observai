@@ -14,7 +14,8 @@ def test_health_ok(client):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["status"] == "ok"
-    assert body["service"] == "gateway"
+    # Config.SERVICE_NAME, which follows the observai_<service> convention.
+    assert body["service"] == "observai_gateway"
 
 
 def test_prompt_happy_path(client, inference_response):
