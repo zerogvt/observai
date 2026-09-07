@@ -75,6 +75,9 @@ Dynatrace tenant is the first part of you DT url. E.g. for https://bzu12345.apps
    bash build_deploy.sh --no-build
    ```
 
+## See the loadgen chat in action
+`k logs [observai-loadgen-container-id] -n observai -f`
+![LoadGen](docs/loadgen.png)
 
 ## Observability & governance
 
