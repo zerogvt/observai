@@ -134,3 +134,18 @@ curl -sS -X POST http://localhost:8001/infer   \
 -H 'Content-Type: application/json' \
 -d '{"task":"chat","input":"hello there", "request_id": "9f1c2e4a7b8d4f3a9c6e5d2b1a0f8e7c"}'
 ```
+
+
+### Run tests
+Prepare env
+```
+python3 -m venv .
+source bin/activate
+pip install -r gateway/requirements.txt -r gateway/requirements-dev.txt \
+            -r inference/requirements.txt -r inference/requirements-dev.txt
+```
+
+Run tests
+```
+cd gateway && pytest && cd ../inference && pytest && cd ..
+```
