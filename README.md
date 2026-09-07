@@ -145,6 +145,6 @@ To make the `needs_review` / flagged-answer path easy to trigger for demos and s
 
 ![Total flagged errors](docs/total_flagged_errors.png)
 
-## License
+## Dynatrace Sample Executive Dashboard
 
-_TBD._
+![Latency](docs/executive-dashboard.png)
