@@ -4,7 +4,7 @@ A Kubernetes-native reference stack for instrumenting local LLM inference with O
 
 observAI runs a complete LLM serving pipeline on Kubernetes and instruments every hop — from request ingress to token generation — with OpenTelemetry traces and metrics. Telemetry is exported to Dynatrace, giving you request-level tracing, model performance signals (tokens, latency, confidence), and a foundation for AI governance and EU AI Act–style compliance reporting.
 
-It's built to be run locally on [minikube](https://minikube.sigs.k8s.io/) as a portfolio / reference project, but the patterns carry over to any Kubernetes cluster.
+It's built to be run locally on [kubernets on docker desktop](https://www.docker.com/blog/how-to-set-up-a-kubernetes-cluster-on-docker-desktop/) and [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) as a reference project, but the patterns carry over to any Kubernetes cluster.
 
 ## Why
 
@@ -60,67 +60,21 @@ The services share a consistent set of engineering conventions:
 
 1. **Start a kubernetes cluster through docker desktop** with enough headroom for Ollama and the model: i.e. memory>=8192, cpus>=4
 
-
-2. **Build images** 
-
-   ```
-   docker build -t observai-inference:0.1.0 inference/
-   docker build -t observai-gateway:0.1.0 gateway/
-   docker build -t observai-loadgen:0.1.0 loadgen/
-   ```
-
-3. **Configure the Dynatrace export.** Set your Dynatrace OTLP endpoint and API token for the collector as a secret in `observai` namespace:
+2. **Set needed Dynatrace env variables** Set your Dynatrace OTLP endpoint and API token for the collector as a secret in `observai` namespace:
 ```
- kubectl create secret generic observai-collector   \
- --from-literal=DT_API_TOKEN='[your_dynatrace_API_token]' \
- --from-literal=DT_OTLP_ENDPOINT=https://[your_dynatrace_tenant].live.dynatrace.com/api/v2/otlp \
- -n observai
+ export DT_API_TOKEN='your_dynatrace_generated_token_see_next_for_needed_scope'
+ export DT_TENANT='your_dynatrace_tenant_see_next_for_example'
 ```
 Dynatrace Api token must have the `Ingest metrics` and `Ingest OpenTelemetry traces` API scopes.
 
-4. **Apply the manifests** for each component you want to run.
-Start with creating the namespace:
-`kubectl apply -f k8s/observai_ns.yaml`
+Dynatrace tenant is the first part of you DT url. E.g. for https://bzu12345.apps.dynatrace.com/ tenant is `bzu12345`
 
-And continue with the services:
-```
-kubectl apply -f ollama/k8s/observai-ollama.yaml
-kubectl apply -f inference/k8s/observai-inference.yaml
-kubectl apply -f gateway/k8s/observai-gateway.yaml
-kubectl apply -f collector/k8s/observai-collector.yaml
-```
 
-5. Test Messages
+3. **Build and Deploy** 
+   ```
+   bash build_deploy.sh --no-build
+   ```
 
-**Send a prompt** to gateway:
-```
-kubectl port-forward service/observai-gateway 8000:8000 -n observai
-
-curl -X POST http://<gateway-address>/prompt \
-     -H 'Content-Type: application/json' \
-     -d '{"prompt": "Hello"}'
-```
-
-**Send a prompt** to ollama:
-```
-kubectl port-forward service/ollama 11434:12434 -n observai
-
-curl -sS -X POST http://localhost:11434/api/chat   \
--H 'Content-Type: application/json'   \
--d '{"model":"qwen:0.5b","messages":[{"role":"user","content":"hello"}]}'
-```
-
-**Send a prompt** to inference:
-```
-kubectl port-forward service/observai-inference 8001:8001 -n observai
-
-curl -sS -X POST http://localhost:8001/infer   \
--H 'Content-Type: application/json' \
--d '{"task":"chat","input":"hello there", "request_id": "9f1c2e4a7b8d4f3a9c6e5d2b1a0f8e7c"}'
-```
-
-6. **Optionally enable loadgen** to generate continuous traffic and populate the dashboards.
-`kubectl apply -f loadgen/k8s/observai-loadgen.yaml`
 
 ## Observability & governance
 
@@ -148,3 +102,35 @@ To make the `needs_review` / flagged-answer path easy to trigger for demos and s
 ## Dynatrace Sample Executive Dashboard
 
 ![Latency](docs/executive-dashboard.png)
+
+
+## Debug/Dev Info
+
+### Test Messages
+
+**Send a prompt** to gateway:
+```
+kubectl port-forward service/observai-gateway 8000:8000 -n observai
+
+curl -X POST http://<gateway-address>/prompt \
+     -H 'Content-Type: application/json' \
+     -d '{"prompt": "Hello"}'
+```
+
+**Send a prompt** to ollama:
+```
+kubectl port-forward service/ollama 11434:12434 -n observai
+
+curl -sS -X POST http://localhost:11434/api/chat   \
+-H 'Content-Type: application/json'   \
+-d '{"model":"qwen:0.5b","messages":[{"role":"user","content":"hello"}]}'
+```
+
+**Send a prompt** to inference:
+```
+kubectl port-forward service/observai-inference 8001:8001 -n observai
+
+curl -sS -X POST http://localhost:8001/infer   \
+-H 'Content-Type: application/json' \
+-d '{"task":"chat","input":"hello there", "request_id": "9f1c2e4a7b8d4f3a9c6e5d2b1a0f8e7c"}'
+```
