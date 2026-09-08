@@ -113,12 +113,16 @@ def prompt():
         #    service reported them. (Inference owns the real metrics; the
         #    gateway just annotates the trace for end-to-end visibility.)
         log.info(result)
+        # Span attributes use the ai.* namespace, matching what the inference
+        # service publishes for the same values — these are copies of its
+        # numbers, so they must not have different names. (Metric *keys* stay
+        # observai.*; renaming those would orphan their history.)
         for key, attr in (
-            ("tokens_in", "observai.tokens.in"),
-            ("tokens_out", "observai.tokens.out"),
-            ("cost_usd", "observai.cost.usd"),
-            ("model", "observai.model"),
-            ("confidence", "observai.confidence"),
+            ("tokens_in", "ai.tokens.in"),
+            ("tokens_out", "ai.tokens.out"),
+            ("cost_usd", "ai.cost.usd"),
+            ("model", "ai.model"),
+            ("confidence", "ai.confidence"),
         ):
             if key in result:
                 log.info(f"setting {attr}={result[key]}")

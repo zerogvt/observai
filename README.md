@@ -141,13 +141,15 @@ of it.
 | Attribute | What it is |
 |-----------|------------|
 | `ai.task` / `ai.input.chars` | Task kind and raw input size |
-| `observai.tokens.in` / `.out` / `.cost.usd` / `.model` / `.confidence` | Copied from the inference response so the trace is readable end-to-end. `cost.usd` is always `0.0` — local model |
+| `ai.tokens.in` / `.out` / `.cost.usd` / `.model` / `.confidence` | Copied from the inference response so the trace is readable end-to-end. `cost.usd` is always `0.0` — local model |
 | `ai.oversight.flagged` / `ai.oversight.reasons` | Human-oversight verdict and why |
 | `error` / `error.kind` | `inference_timeout` (504) or `inference_unavailable` (502) |
 
-> Note the two namespaces: inference writes `ai.*`, the gateway writes
-> `observai.*` for the values it copies. Worth unifying, but changing it now
-> would break saved queries and dashboards.
+> **Namespaces:** span attributes are `ai.*` everywhere; metric *keys* are
+> `observai.*`. That split is deliberate — the metric keys are product-scoped
+> and renaming one orphans its history, whereas attribute names only affect
+> queries from that point on. Note `observai.tokens.in` therefore still exists
+> as a metric, while the span attribute of the same value is `ai.tokens.in`.
 
 ## Demo-only confidence hack
 
