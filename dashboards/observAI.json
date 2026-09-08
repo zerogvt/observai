@@ -1,0 +1,1339 @@
+{
+  "version": 21,
+  "variables": [
+    {
+      "version": 3,
+      "key": "Task",
+      "name": "Task",
+      "type": "csv",
+      "visible": true,
+      "editable": true,
+      "input": "chat,summarize,classify,extract",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    }
+  ],
+  "tiles": {
+    "0": {
+      "type": "markdown",
+      "content": "# observAI — AI Operations & Governance\n\nEnd-to-end view of the observAI LLM pipeline (**gateway → inference → Ollama**), built from the OpenTelemetry traces and metrics the services emit.\n\n| Section | Audience | Question it answers |\n|---|---|---|\n| **1 · Executive summary** | Managers | Is the AI service used, is it healthy, what does it consume, how much needs human review? |\n| **2 · Governance & human oversight** | Auditors | Can we evidence oversight, traceability and record-keeping for every AI output? |\n| **3 · Engineering & reliability** | Engineers | Where is the latency, what is failing, and why? |\n\nUse the **Task** filter above and the time-frame picker (top right) to scope every tile."
+    },
+    "1": {
+      "type": "markdown",
+      "content": "## 1 · Executive summary"
+    },
+    "2": {
+      "title": "AI requests served",
+      "description": "Total inference requests in the selected time frame (metric observai.inference.requests).",
+      "type": "data",
+      "query": "timeseries requests = sum(observai.inference.requests), filter: { in(task, array($Task)) }\n| fieldsAdd bucket_total = arraySum(requests)\n| summarize total_requests = sum(bucket_total)",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "requests",
+          "recordField": "total_requests"
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "total_requests",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 0,
+            "suffix": "",
+            "delimiter": true,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "3": {
+      "title": "Success rate",
+      "description": "Share of inference requests with outcome=ok. Below 100% means the model backend rejected or failed a call.",
+      "type": "data",
+      "query": "timeseries requests = sum(observai.inference.requests), \nby: { outcome }, filter: { in(task, array($Task)) }\n| fieldsAdd bucket_total = arraySum(requests)\n| summarize { ok = sum(if(outcome == \"ok\", bucket_total, else: 0)), all = sum(bucket_total) }\n| fieldsAdd success_rate_pct = if(all > 0, ok * 100.0 / all, else: 0.0)\n| fields success_rate_pct",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "ok / total",
+          "recordField": "success_rate_pct"
+        },
+        "coloring": {
+          "colorRules": [
+            {
+              "value": 0,
+              "comparator": "≥",
+              "field": "success_rate_pct",
+              "colorMode": "custom-color",
+              "customColor": {
+                "Default": "var(--dt-colors-charts-status-critical-default, #c62239)"
+              },
+              "type": "double"
+            },
+            {
+              "value": 95,
+              "comparator": "≥",
+              "field": "success_rate_pct",
+              "colorMode": "custom-color",
+              "customColor": {
+                "Default": "var(--dt-colors-charts-status-warning-default, #eea53c)"
+              },
+              "type": "double"
+            },
+            {
+              "value": 99,
+              "comparator": "≥",
+              "field": "success_rate_pct",
+              "colorMode": "custom-color",
+              "customColor": {
+                "Default": "var(--dt-colors-charts-status-ideal-default, #2f6862)"
+              },
+              "type": "double"
+            }
+          ]
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "success_rate_pct",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 2,
+            "suffix": " %",
+            "delimiter": false,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "4": {
+      "title": "Avg inference latency",
+      "description": "Average model-call latency reported by the inference service (histogram observai.inference.latency, milliseconds).",
+      "type": "data",
+      "query": "timeseries latency = avg(observai.inference.latency), filter: { in(task, array($Task)) }\n| fieldsAdd avg_latency_ms = arrayAvg(latency)\n| fields avg_latency_ms",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "per request",
+          "recordField": "avg_latency_ms"
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "avg_latency_ms",
+            "unitCategory": "time",
+            "baseUnit": "millisecond",
+            "displayUnit": null,
+            "decimals": 0,
+            "suffix": "",
+            "delimiter": true,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "5": {
+      "title": "Tokens processed",
+      "description": "Prompt + generated tokens. On a local model this is the meaningful consumption signal in place of a dollar cost.",
+      "type": "data",
+      "query": "timeseries { tin = sum(observai.tokens.in), tout = sum(observai.tokens.out) }, filter: { in(task, array($Task)) }\n| fieldsAdd total_tokens = arraySum(tin) + arraySum(tout)\n| fields total_tokens",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "in + out",
+          "recordField": "total_tokens"
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "total_tokens",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 0,
+            "suffix": "",
+            "delimiter": true,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "6": {
+      "title": "Outputs flagged for human review",
+      "description": "Responses the gateway oversight hook did not consider auto-trustworthy (span attribute ai.oversight.flagged).",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"gateway.handle_prompt\"\n| filter in(ai.task, array($Task))\n| summarize flagged = countIf(ai.oversight.flagged == true)",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "responses",
+          "recordField": "flagged"
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "flagged",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 0,
+            "suffix": "",
+            "delimiter": true,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "7": {
+      "title": "Human-review rate",
+      "description": "Share of responses routed to human oversight. A rising rate means model quality is drifting or inputs are getting harder.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"gateway.handle_prompt\"\n| filter in(ai.task, array($Task))\n| summarize { flagged = countIf(ai.oversight.flagged == true), total = count() }\n| fieldsAdd review_rate_pct = if(total > 0, flagged * 100.0 / total, else: 0.0)\n| fields review_rate_pct",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "singleValue": {
+          "label": "of all responses",
+          "recordField": "review_rate_pct"
+        },
+        "coloring": {
+          "colorRules": [
+            {
+              "value": 0,
+              "comparator": "≥",
+              "field": "review_rate_pct",
+              "colorMode": "custom-color",
+              "customColor": {
+                "Default": "var(--dt-colors-charts-status-ideal-default, #2f6862)"
+              },
+              "type": "double"
+            },
+            {
+              "value": 10,
+              "comparator": "≥",
+              "field": "review_rate_pct",
+              "colorMode": "custom-color",
+              "customColor": {
+                "Default": "var(--dt-colors-charts-status-warning-default, #eea53c)"
+              },
+              "type": "double"
+            },
+            {
+              "value": 25,
+              "comparator": "≥",
+              "field": "review_rate_pct",
+              "colorMode": "custom-color",
+              "customColor": {
+                "Default": "var(--dt-colors-charts-status-critical-default, #c62239)"
+              },
+              "type": "double"
+            }
+          ]
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "review_rate_pct",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 2,
+            "suffix": " %",
+            "delimiter": false,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "8": {
+      "title": "Request volume by outcome",
+      "description": "Inference throughput split into successful and failed calls.",
+      "type": "data",
+      "query": "timeseries requests = sum(observai.inference.requests), by: { outcome }, filter: { in(task, array($Task)) }",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe"
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "9": {
+      "title": "Token consumption over time",
+      "description": "Prompt tokens vs generated tokens. The gap between the two lines is the model's amplification factor.",
+      "type": "data",
+      "query": "timeseries { tokens_in = sum(observai.tokens.in), tokens_out = sum(observai.tokens.out) }, filter: { in(task, array($Task)) }",
+      "visualization": "areaChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe"
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "10": {
+      "title": "Workload mix by task",
+      "description": "Which of the four permitted tasks (chat / summarize / classify / extract) the AI system is actually used for.",
+      "type": "data",
+      "query": "timeseries requests = sum(observai.inference.requests), \nby: { task }, filter: { in(task, array($Task)) }\n| fieldsAdd bucket_total = arraySum(requests)\n| summarize reqs = sum(bucket_total), by: { task }, total=sum(bucket_total)\n| fieldsAdd pc=100*reqs/total\n| sort pc desc\n\n/*\n| summarize requests = sum(bucket_total), by: { task }\n| sort requests desc",
+      "visualization": "pieChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "circleChartSettings": {
+            "valueType": "relative"
+          }
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "11": {
+      "title": "Token consumption by task",
+      "description": "Which task types drive consumption. Use this to decide where prompt or output-length tuning pays off most.",
+      "type": "data",
+      "query": "timeseries { tin = sum(observai.tokens.in), tout = sum(observai.tokens.out) }, by: { task }, filter: { in(task, array($Task)) }\n| fieldsAdd tokens_in = arraySum(tin), tokens_out = arraySum(tout)\n| fields task, tokens_in, tokens_out\n| sort tokens_out desc",
+      "visualization": "categoricalBarChart",
+      "visualizationSettings": {},
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "12": {
+      "title": "Inference latency trend",
+      "description": "Average and worst-case model latency. Local CPU inference is slow by nature — watch the shape, not the absolute number.",
+      "type": "data",
+      "query": "timeseries { avg_ms = avg(observai.inference.latency), max_ms = max(observai.inference.latency) }, filter: { in(task, array($Task)) }",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe"
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "avg_ms",
+            "unitCategory": "time",
+            "baseUnit": "millisecond",
+            "displayUnit": null,
+            "decimals": 0,
+            "suffix": "",
+            "delimiter": true,
+            "cascade": null,
+            "added": 1757030400000
+          },
+          {
+            "identifier": "max_ms",
+            "unitCategory": "time",
+            "baseUnit": "millisecond",
+            "displayUnit": null,
+            "decimals": 0,
+            "suffix": "",
+            "delimiter": true,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "13": {
+      "type": "markdown",
+      "content": "## 2 · Governance & human oversight\n\nEvidence that every model output is scored, that low-confidence outputs are routed to a human, and that each one can be traced back to a specific request.\n\n*Speaks to the record-keeping, human-oversight and accuracy-monitoring themes in the EU AI Act (Art. 12–15) and ISO/IEC 42001. The confidence value is an **explainable rule-based proxy**, not a calibrated model probability — see `inference/confidence.py`.*"
+    },
+    "14": {
+      "title": "Human-review queue volume",
+      "description": "Total responses vs responses handed to human oversight. The gap is what was auto-trusted.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"gateway.handle_prompt\"\n| filter in(ai.task, array($Task))\n| makeTimeseries { responses = count(), flagged_for_review = countIf(ai.oversight.flagged == true) }, time: start_time",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe",
+          "curve": "smooth",
+          "gapPolicy": "connect"
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "15": {
+      "title": "Human-review rate over time",
+      "description": "Percentage of outputs escalated to a human. A sustained rise is the earliest quality-drift signal this stack produces.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"gateway.handle_prompt\"\n| filter in(ai.task, array($Task))\n| makeTimeseries { responses = count(), flagged = countIf(ai.oversight.flagged == true) }, time: start_time\n| fieldsAdd review_rate_pct = flagged[] * 100.0 / responses[]\n| fields timeframe, interval, review_rate_pct",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "connect"
+        },
+        "coloring": {
+          "thresholdRules": [
+            {
+              "color": {
+                "Default": "var(--dt-colors-charts-status-ideal-default, #2f6862)"
+              },
+              "colorMode": "single-color",
+              "label": "Normal",
+              "min": 0,
+              "max": null,
+              "mode": "range",
+              "position": "left",
+              "strokeOnly": false
+            },
+            {
+              "color": {
+                "Default": "var(--dt-colors-charts-status-warning-default, #eea53c)"
+              },
+              "colorMode": "single-color",
+              "label": "Elevated",
+              "min": 10,
+              "max": null,
+              "mode": "range",
+              "position": "left",
+              "strokeOnly": false
+            },
+            {
+              "color": {
+                "Default": "var(--dt-colors-charts-status-critical-default, #c62239)"
+              },
+              "colorMode": "single-color",
+              "label": "High",
+              "min": 25,
+              "max": null,
+              "mode": "range",
+              "position": "left",
+              "strokeOnly": false
+            }
+          ]
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "review_rate_pct",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 1,
+            "suffix": " %",
+            "delimiter": false,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "16": {
+      "title": "Confidence distribution",
+      "description": "How the rule-based confidence proxy scored each response. Everything below the 0.6 review floor is escalated.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| filter isNotNull(ai.confidence)\n| fieldsAdd band = if(ai.confidence < 0.2, \"0.0-0.2  very low\",\n                 else: if(ai.confidence < 0.4, \"0.2-0.4  low\",\n                 else: if(ai.confidence < 0.6, \"0.4-0.6  below floor\",\n                 else: if(ai.confidence < 0.8, \"0.6-0.8  acceptable\",\n                 else: \"0.8-1.0  high\"))))\n| summarize responses = count(), by: { band }\n| sort band asc",
+      "visualization": "categoricalBarChart",
+      "visualizationSettings": {},
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "17": {
+      "title": "Why outputs were flagged",
+      "description": "The auditable reason each escalation was raised, parsed from ai.oversight.reasons. Every flag has an explainable cause by design.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"gateway.handle_prompt\"\n| filter in(ai.task, array($Task))\n| filter ai.oversight.flagged == true\n| filter isNotNull(ai.oversight.reasons)\n| fieldsAdd reason = splitString(ai.oversight.reasons, \"; \")\n| expand reason\n| fieldsAdd reason_category = if(contains(reason, \"below floor\"), \"Confidence below floor\",\n                            else: if(contains(reason, \"empty model output\"), \"Empty model output\",\n                            else: if(contains(reason, \"requested review\"), \"Inference requested review\",\n                            else: \"Other\")))\n| summarize occurrences = count(), by: { reason_category }\n| sort occurrences desc",
+      "visualization": "categoricalBarChart",
+      "visualizationSettings": {},
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "18": {
+      "title": "Completion reason",
+      "description": "\"stop\" = the model finished on its own. \"length\" = the output was cut off at MAX_OUTPUT_TOKENS, which also penalises confidence.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| filter isNotNull(ai.done_reason)\n| summarize responses = count(), by: { ai.done_reason }\n| sort responses desc",
+      "visualization": "donutChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "circleChartSettings": {
+            "valueType": "relative",
+            "showTotalValue": true
+          }
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "19": {
+      "title": "Traceability coverage",
+      "description": "Share of AI responses carrying a correlation id. This should stay at 100% — it is what makes a single output reconstructable end to end.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"gateway.handle_prompt\"\n| filter in(ai.task, array($Task))\n| summarize { total = count(), with_id = countIf(isNotNull(request.id)) }\n| fieldsAdd traceability_pct = if(total > 0, with_id * 100.0 / total, else: 0.0)\n| fields traceability_pct",
+      "visualization": "gauge",
+      "visualizationSettings": {
+        "valueBoundaries": {
+          "min": {
+            "mode": "custom",
+            "value": 0
+          },
+          "max": {
+            "mode": "custom",
+            "value": 100
+          }
+        },
+        "icon": {
+          "showIcon": false,
+          "icon": "MeterbarIcon"
+        },
+        "label": {
+          "label": "requests with a correlation id"
+        },
+        "dataMapping": {
+          "value": "traceability_pct"
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "traceability_pct",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 2,
+            "suffix": " %",
+            "delimiter": false,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "20": {
+      "title": "Model inventory — what actually served traffic",
+      "description": "Which model versions handled requests, for how long, and how they scored. The starting point of an AI system register.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| summarize {\n    requests = count(),\n    avg_confidence = avg(ai.confidence),\n    flagged_for_review = countIf(ai.needs_review == true),\n    truncated = countIf(ai.done_reason == \"length\"),\n    first_seen = min(start_time),\n    last_seen = max(start_time)\n  }, by: { model = ai.model, task = ai.task, service = dt.service.name }\n| fieldsAdd review_rate_pct = if(requests > 0, flagged_for_review * 100.0 / requests, else: 0.0)\n| fields model, task, service, requests, avg_confidence, review_rate_pct, truncated, first_seen, last_seen\n| sort requests desc",
+      "visualization": "table",
+      "visualizationSettings": {
+        "table": {
+          "columnOrder": [
+            "[\"model\"]",
+            "[\"task\"]",
+            "[\"service\"]",
+            "[\"requests\"]",
+            "[\"avg_confidence\"]",
+            "[\"review_rate_pct\"]",
+            "[\"truncated\"]",
+            "[\"first_seen\"]",
+            "[\"last_seen\"]"
+          ]
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "avg_confidence",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 3,
+            "suffix": "",
+            "delimiter": false,
+            "cascade": null,
+            "added": 1757030400000
+          },
+          {
+            "identifier": "review_rate_pct",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 1,
+            "suffix": " %",
+            "delimiter": false,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "21": {
+      "type": "markdown",
+      "content": "### Audit evidence — every output that was escalated to a human\n\nOne row per flagged response, with the correlation id and trace id needed to reconstruct exactly what was asked, what the model answered, and why it was not auto-trusted. **Open a `trace.id` to jump into the full distributed trace.**"
+    },
+    "22": {
+      "title": "Flagged responses — audit record",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"gateway.handle_prompt\"\n| filter in(ai.task, array($Task))\n| filter ai.oversight.flagged == true\n| fields\n    start_time,\n    request_id = request.id,\n    task = ai.task,\n    model = observai.model,\n    confidence = observai.confidence,\n    reasons = ai.oversight.reasons,\n    input_chars = ai.input.chars,\n    tokens_in = observai.tokens.in,\n    tokens_out = observai.tokens.out,\n    end_to_end = duration,\n    trace.id\n| sort start_time desc\n| limit 200",
+      "visualization": "table",
+      "visualizationSettings": {
+        "table": {
+          "linewrapEnabled": true,
+          "columnOrder": [
+            "[\"start_time\"]",
+            "[\"request_id\"]",
+            "[\"task\"]",
+            "[\"model\"]",
+            "[\"confidence\"]",
+            "[\"reasons\"]",
+            "[\"input_chars\"]",
+            "[\"tokens_in\"]",
+            "[\"tokens_out\"]",
+            "[\"end_to_end\"]",
+            "[\"trace.id\"]"
+          ]
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "confidence",
+            "unitCategory": "unspecified",
+            "baseUnit": "count",
+            "displayUnit": null,
+            "decimals": 2,
+            "suffix": "",
+            "delimiter": false,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "23": {
+      "type": "markdown",
+      "content": "## 3 · Engineering & reliability\n\nWhere the time goes and what breaks. `gateway.handle_prompt` is the end-to-end span; `inference.generate` is the model call nested inside it — the difference between the two is gateway and network overhead."
+    },
+    "24": {
+      "title": "End-to-end latency percentiles",
+      "description": "Client-observed latency on the gateway span. p99 is what your slowest callers actually feel.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"gateway.handle_prompt\"\n| filter in(ai.task, array($Task))\n| makeTimeseries { p50 = percentile(duration, 50), p95 = percentile(duration, 95), p99 = percentile(duration, 99) }, time: start_time",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "connect",
+          "curve": "smooth"
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "25": {
+      "title": "Where the latency lives — gateway vs model call",
+      "description": "p95 of each hop. If the two lines track closely the model dominates; a widening gap points at the gateway, Redis rate limiting, or the network.",
+      "type": "data",
+      "query": "fetch spans\n| filter in(span.name, { \"gateway.handle_prompt\", \"inference.generate\" })\n| filter in(ai.task, array($Task))\n| fieldsAdd hop = if(span.name == \"gateway.handle_prompt\", \"1 - gateway (end to end)\", else: \"2 - inference (model call)\")\n| makeTimeseries p95 = percentile(duration, 95), time: start_time, by: { hop }",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "connect",
+          "curve": "smooth"
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "26": {
+      "title": "Generation throughput (tokens/sec)",
+      "description": "Ollama's own generation timer. This is the capacity signal for a local model — it drops when the node is CPU-starved.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| filter isNotNull(ai.tokens_per_sec)\n| makeTimeseries { avg_tokens_per_sec = avg(ai.tokens_per_sec), min_tokens_per_sec = min(ai.tokens_per_sec) }, time: start_time",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "connect",
+          "curve": "smooth"
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "27": {
+      "title": "Output length vs latency",
+      "description": "Each point is one inference. A tight diagonal means latency is driven by output length; vertical scatter means contention elsewhere.",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| filter isNotNull(ai.tokens.out) and isNotNull(ai.latency.ms)\n| fields tokens_out = ai.tokens.out, latency_ms = ai.latency.ms, task = ai.task\n| limit 2000",
+      "visualization": "scatterplot",
+      "visualizationSettings": {
+        "dataMapping": {
+          "xAxis": "tokens_out",
+          "yAxis": "latency_ms",
+          "displayedFields": [
+            "task"
+          ]
+        },
+        "unitsOverrides": [
+          {
+            "identifier": "latency_ms",
+            "unitCategory": "time",
+            "baseUnit": "millisecond",
+            "displayUnit": null,
+            "decimals": 0,
+            "suffix": "",
+            "delimiter": true,
+            "cascade": null,
+            "added": 1757030400000
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "28": {
+      "title": "Failure modes",
+      "description": "ollama_unavailable = the model backend is down. inference_timeout / inference_unavailable = the gateway could not get an answer in time.",
+      "type": "data",
+      "query": "fetch spans\n| filter isNotNull(error.kind)\n| filter in(ai.task, array($Task)) or isNull(ai.task)\n| summarize occurrences = count(), by: { error.kind }\n| sort occurrences desc",
+      "visualization": "categoricalBarChart",
+      "visualizationSettings": {},
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "29": {
+      "title": "Recent failures",
+      "description": "Most recent failed AI requests with their trace ids for drilldown.",
+      "type": "data",
+      "query": "fetch spans\n| filter isNotNull(error.kind)\n| filter in(ai.task, array($Task)) or isNull(ai.task)\n| fields\n    start_time,\n    service = dt.service.name,\n    span.name,\n    failure = error.kind,\n    task = ai.task,\n    request_id = request.id,\n    duration,\n    trace.id\n| sort start_time desc\n| limit 100",
+      "visualization": "table",
+      "visualizationSettings": {
+        "table": {
+          "columnOrder": [
+            "start_time",
+            "service",
+            "span.name",
+            "failure",
+            "task",
+            "request_id",
+            "duration",
+            "trace.id"
+          ]
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "30": {
+      "type": "markdown",
+      "content": "---\n\n### How to read this dashboard, and what it does not tell you\n\n- **`confidence` is a proxy, not a probability.** It is computed by a small set of explainable rules in `inference/confidence.py` (empty output, truncation, very short output). It is deliberately auditable rather than statistically calibrated. That file also contains a demo-only rule that penalises any answer mentioning *bicycle* — remove it before treating confidence as a real quality signal.\n- **`cost_usd` is always 0.** The model runs locally, so the meaningful consumption signals are tokens, latency and tokens/sec — which is what this dashboard charts.\n- **Success rate covers the model call only.** It is derived from `observai.inference.requests`, emitted by the inference service. Requests rejected earlier by gateway validation or rate limiting (HTTP 400 / 429) never reach it and are not counted here.\n- **No prompt or response text is stored in telemetry** — only lengths, token counts and scores. Content-level review has to happen in the review sink that `gateway/oversight.py` writes to."
+    },
+    "31": {
+      "type": "markdown",
+      "content": "### Inside the model call - Ollama's own timers\n\nThe tiles above measure the gap between `gateway.handle_prompt` and `inference.generate` as gateway plus network overhead. These go one level deeper, *inside* `inference.generate`, using the timing breakdown Ollama itself reports (`ai.latency.*`).\n\n**prefill** = reading the prompt, scales with input | **generate** = producing tokens, output length divided by throughput | **load** = model load, ~0 unless cold | **transport** = HTTP and queueing Ollama does not account for\n\nWhichever term moves is the answer to \"why was that request slow\". Without the split, every span in the synchronous chain reports the same number and the model is ~99.9% of it.\n\n> Only requests served after the timing instrumentation was deployed carry these attributes; older spans show blank."
+    },
+    "32": {
+      "title": "Latency breakdown over time (ms)",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| makeTimeseries { prefill_ms = avg(ai.latency.prompt_eval.ms), generate_ms = avg(ai.latency.eval.ms), load_ms = avg(ai.latency.load.ms), transport_ms = avg(ai.latency.overhead.ms) }, time: start_time",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "connect",
+          "curve": "smooth"
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "33": {
+      "title": "Generation time vs output tokens vs throughput",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| makeTimeseries { generate_ms = avg(ai.latency.eval.ms), tokens_out = avg(ai.tokens.out), tokens_per_sec = avg(ai.tokens_per_sec) }, time: start_time",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "chartSettings": {
+          "legend": {
+            "position": "bottom"
+          },
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "connect",
+          "curve": "smooth"
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    },
+    "34": {
+      "title": "Per-request timing breakdown (newest first)",
+      "type": "data",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| filter isNotNull(ai.latency.eval.ms)\n| fields timestamp, task = ai.task, model = ai.model, tokens_in = ai.tokens.in, tokens_out = ai.tokens.out, tokens_per_sec = ai.tokens_per_sec, load_ms = ai.latency.load.ms, prefill_ms = ai.latency.prompt_eval.ms, generate_ms = ai.latency.eval.ms, transport_ms = ai.latency.overhead.ms, ollama_total_ms = ai.latency.total.ms, wall_ms = ai.latency.ms, done_reason = ai.done_reason\n| sort timestamp desc\n| limit 100",
+      "visualization": "table",
+      "visualizationSettings": {},
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "davis": {
+        "enabled": false,
+        "davisVisualization": {
+          "isAvailable": true
+        }
+      }
+    }
+  },
+  "layouts": {
+    "0": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 5
+    },
+    "1": {
+      "x": 0,
+      "y": 5,
+      "w": 24,
+      "h": 1
+    },
+    "2": {
+      "x": 0,
+      "y": 6,
+      "w": 4,
+      "h": 4
+    },
+    "3": {
+      "x": 4,
+      "y": 6,
+      "w": 4,
+      "h": 4
+    },
+    "4": {
+      "x": 8,
+      "y": 6,
+      "w": 4,
+      "h": 4
+    },
+    "5": {
+      "x": 12,
+      "y": 6,
+      "w": 4,
+      "h": 4
+    },
+    "6": {
+      "x": 16,
+      "y": 6,
+      "w": 4,
+      "h": 4
+    },
+    "7": {
+      "x": 20,
+      "y": 6,
+      "w": 4,
+      "h": 4
+    },
+    "8": {
+      "x": 0,
+      "y": 10,
+      "w": 12,
+      "h": 7
+    },
+    "9": {
+      "x": 12,
+      "y": 10,
+      "w": 12,
+      "h": 7
+    },
+    "10": {
+      "x": 0,
+      "y": 17,
+      "w": 8,
+      "h": 7
+    },
+    "11": {
+      "x": 8,
+      "y": 17,
+      "w": 8,
+      "h": 7
+    },
+    "12": {
+      "x": 16,
+      "y": 17,
+      "w": 8,
+      "h": 7
+    },
+    "13": {
+      "x": 0,
+      "y": 24,
+      "w": 24,
+      "h": 3
+    },
+    "14": {
+      "x": 0,
+      "y": 27,
+      "w": 12,
+      "h": 7
+    },
+    "15": {
+      "x": 12,
+      "y": 27,
+      "w": 12,
+      "h": 7
+    },
+    "16": {
+      "x": 0,
+      "y": 34,
+      "w": 8,
+      "h": 7
+    },
+    "17": {
+      "x": 8,
+      "y": 34,
+      "w": 8,
+      "h": 7
+    },
+    "18": {
+      "x": 16,
+      "y": 34,
+      "w": 8,
+      "h": 7
+    },
+    "19": {
+      "x": 0,
+      "y": 41,
+      "w": 6,
+      "h": 7
+    },
+    "20": {
+      "x": 6,
+      "y": 41,
+      "w": 18,
+      "h": 7
+    },
+    "21": {
+      "x": 0,
+      "y": 48,
+      "w": 24,
+      "h": 2
+    },
+    "22": {
+      "x": 0,
+      "y": 50,
+      "w": 24,
+      "h": 10
+    },
+    "23": {
+      "x": 0,
+      "y": 60,
+      "w": 24,
+      "h": 2
+    },
+    "24": {
+      "x": 0,
+      "y": 62,
+      "w": 12,
+      "h": 7
+    },
+    "25": {
+      "x": 12,
+      "y": 62,
+      "w": 12,
+      "h": 7
+    },
+    "26": {
+      "x": 0,
+      "y": 69,
+      "w": 12,
+      "h": 7
+    },
+    "27": {
+      "x": 12,
+      "y": 69,
+      "w": 12,
+      "h": 7
+    },
+    "28": {
+      "x": 0,
+      "y": 76,
+      "w": 8,
+      "h": 7
+    },
+    "29": {
+      "x": 8,
+      "y": 76,
+      "w": 16,
+      "h": 7
+    },
+    "30": {
+      "x": 0,
+      "y": 100,
+      "w": 24,
+      "h": 5
+    },
+    "31": {
+      "x": 0,
+      "y": 83,
+      "w": 24,
+      "h": 2
+    },
+    "32": {
+      "x": 0,
+      "y": 85,
+      "w": 12,
+      "h": 7
+    },
+    "33": {
+      "x": 12,
+      "y": 85,
+      "w": 12,
+      "h": 7
+    },
+    "34": {
+      "x": 0,
+      "y": 92,
+      "w": 24,
+      "h": 8
+    }
+  },
+  "importedWithCode": false,
+  "settings": {
+    "gridLayout": {
+      "mode": "responsive",
+      "columnsCount": 24
+    }
+  },
+  "annotations": []
+}

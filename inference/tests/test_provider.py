@@ -17,6 +17,9 @@ def _ollama_response(
     prompt_eval_count=20,
     eval_count=10,
     eval_duration=500_000_000,  # ns -> 0.5s -> 20 tok/s
+    prompt_eval_duration=200_000_000,  # ns -> 200ms prefill
+    load_duration=50_000_000,  # ns -> 50ms model load
+    total_duration=800_000_000,  # ns -> 800ms end-to-end
     done_reason="stop",
     model="qwen:0.5b",
 ):
@@ -30,6 +33,9 @@ def _ollama_response(
         "prompt_eval_count": prompt_eval_count,
         "eval_count": eval_count,
         "eval_duration": eval_duration,
+        "prompt_eval_duration": prompt_eval_duration,
+        "load_duration": load_duration,
+        "total_duration": total_duration,
     }
     return resp
 
@@ -48,6 +54,16 @@ def test_generate_parses_response(mock_post):
     assert out["tokens_per_sec"] == pytest.approx(20.0, abs=0.1)
     assert isinstance(out["latency_ms"], float) and out["latency_ms"] >= 0
 
+    # Ollama's timing breakdown, ns -> ms
+    assert out["total_ms"] == pytest.approx(800.0, abs=0.1)
+    assert out["load_ms"] == pytest.approx(50.0, abs=0.1)
+    assert out["prompt_eval_ms"] == pytest.approx(200.0, abs=0.1)
+    assert out["eval_ms"] == pytest.approx(500.0, abs=0.1)
+    # The mocked call returns instantly, so the wall clock is far below
+    # Ollama's claimed 800ms total and the overhead clamps to zero rather
+    # than going negative.
+    assert out["overhead_ms"] == 0.0
+
 
 @patch("provider.requests.post")
 def test_generate_handles_missing_token_fields(mock_post):
@@ -61,6 +77,10 @@ def test_generate_handles_missing_token_fields(mock_post):
     assert out["tokens_in"] == 0
     assert out["tokens_out"] == 0
     assert out["tokens_per_sec"] == 0.0  # no divide-by-zero on missing duration
+    # Every duration field absent -> zeros, not KeyError. app.py puts these
+    # straight onto the span, so they must always be present.
+    for key in ("total_ms", "load_ms", "prompt_eval_ms", "eval_ms", "overhead_ms"):
+        assert out[key] == 0.0, f"{key} should default to 0.0"
 
 
 @patch("provider.requests.post")

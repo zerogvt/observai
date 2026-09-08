@@ -88,6 +88,67 @@ The stack is designed so that observability doubles as a governance surface:
 - **Portability** comes from OpenTelemetry: swapping the export backend doesn't require re-instrumenting the code.
 - **Compliance angle**: the same telemetry that answers "is it fast?" also feeds the questions frameworks like the EU AI Act and ISO/IEC 42001 care about — traceability of inputs and outputs, monitoring over time, and demonstrable operational control.
 
+## Signals reference
+
+### Metrics
+
+Created in [`inference/tracing.py`](inference/tracing.py), emitted from
+`inference/app.py`. All are dimensioned by `task` and `model`.
+
+| Metric | Type | Unit | What it is |
+|--------|------|------|------------|
+| `observai.tokens.in` | counter | `1` | Input/prompt tokens consumed |
+| `observai.tokens.out` | counter | `1` | Output/generated tokens |
+| `observai.inference.latency` | histogram | `ms` | End-to-end inference latency, wall clock |
+| `observai.inference.requests` | counter | `1` | Requests, also dimensioned `outcome` = `ok` \| `error` |
+
+### Span attributes — `inference.generate`
+
+| Attribute | What it is |
+|-----------|------------|
+| `ai.task` / `ai.model` | Task kind (`chat`, `summarize`…) and the model that served it |
+| `ai.tokens.in` / `ai.tokens.out` | Prompt and generated token counts |
+| `ai.tokens_per_sec` | Generation throughput — the "cost" proxy for a local model |
+| `ai.latency.ms` | Wall clock the inference service measured around the Ollama call |
+| `ai.latency.total.ms` | Ollama's own end-to-end for the request |
+| `ai.latency.load.ms` | Model load time. ~0 when resident; seconds on a cold start |
+| `ai.latency.prompt_eval.ms` | **Prefill** — reading the prompt. Scales with `ai.tokens.in` |
+| `ai.latency.eval.ms` | **Generation** — producing tokens. Usually dominant |
+| `ai.latency.overhead.ms` | Wall clock minus Ollama's total: HTTP, serialisation, queueing |
+| `ai.confidence` / `ai.needs_review` | Confidence proxy and the review flag it triggers |
+| `ai.done_reason` | `stop` (finished) or `length` (hit the token cap) |
+| `error` / `error.kind` | `ollama_unavailable` |
+
+The latency attributes nest, which is what makes a spike diagnosable:
+
+```
+ai.latency.ms                      wall clock
+├── ai.latency.total.ms            Ollama's accounting
+│   ├── ai.latency.load.ms         model load
+│   ├── ai.latency.prompt_eval.ms  prefill  (input size)
+│   └── ai.latency.eval.ms         generate (output size ÷ throughput)
+└── ai.latency.overhead.ms         everything Ollama doesn't see
+```
+
+Whichever term moves is the answer: `eval` → longer outputs or CPU contention,
+`prompt_eval` → bigger prompts, `load` → cold start, `overhead` → not the model
+at all. Without this split every span in the chain reports the same number,
+because `gateway → inference → Ollama` is synchronous and the model is ~99.9%
+of it.
+
+### Span attributes — gateway `/prompt`
+
+| Attribute | What it is |
+|-----------|------------|
+| `ai.task` / `ai.input.chars` | Task kind and raw input size |
+| `observai.tokens.in` / `.out` / `.cost.usd` / `.model` / `.confidence` | Copied from the inference response so the trace is readable end-to-end. `cost.usd` is always `0.0` — local model |
+| `ai.oversight.flagged` / `ai.oversight.reasons` | Human-oversight verdict and why |
+| `error` / `error.kind` | `inference_timeout` (504) or `inference_unavailable` (502) |
+
+> Note the two namespaces: inference writes `ai.*`, the gateway writes
+> `observai.*` for the values it copies. Worth unifying, but changing it now
+> would break saved queries and dashboards.
+
 ## Demo-only confidence hack
 
 To make the `needs_review` / flagged-answer path easy to trigger for demos and screenshots, [`inference/confidence.py`](inference/confidence.py) contains a deliberate hack: any response whose output mentions "bicycle" gets an artificial confidence penalty, pushing it below the review floor and causing it to be flagged. This has nothing to do with real model quality — it's a cheap, reproducible way to induce a flagged answer on demand (e.g. "tell me about bicycles") so the oversight/flagging pipeline and the Dynatrace dashboards above have something to show. Remove this rule before using the confidence proxy for anything real.

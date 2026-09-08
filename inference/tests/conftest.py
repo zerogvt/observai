@@ -59,6 +59,11 @@ def make_result():
         latency_ms=12.3,
         tokens_per_sec=31.4,
         model="qwen:0.5b",
+        total_ms=12.0,
+        load_ms=0.5,
+        prompt_eval_ms=1.2,
+        eval_ms=10.0,
+        overhead_ms=0.3,
     ):
         return {
             "output": output,
@@ -68,6 +73,13 @@ def make_result():
             "latency_ms": latency_ms,
             "tokens_per_sec": tokens_per_sec,
             "done_reason": done_reason,
+            # Ollama's timing breakdown — app.py puts these on the span, so
+            # they have to be present or the happy path raises KeyError.
+            "total_ms": total_ms,
+            "load_ms": load_ms,
+            "prompt_eval_ms": prompt_eval_ms,
+            "eval_ms": eval_ms,
+            "overhead_ms": overhead_ms,
         }
 
     return _make

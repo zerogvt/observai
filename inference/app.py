@@ -92,6 +92,16 @@ def infer():
         span.set_attribute("ai.needs_review", c["needs_review"])
         span.set_attribute("ai.done_reason", result["done_reason"])
 
+        # Ollama's own timing breakdown. The span chain can't provide this:
+        # gateway -> inference -> Ollama is synchronous, so every span reports
+        # essentially the same duration and the model's share is ~99.9% of it.
+        # These split that one number into where the time actually went.
+        span.set_attribute("ai.latency.total.ms", result["total_ms"])
+        span.set_attribute("ai.latency.load.ms", result["load_ms"])
+        span.set_attribute("ai.latency.prompt_eval.ms", result["prompt_eval_ms"])
+        span.set_attribute("ai.latency.eval.ms", result["eval_ms"])
+        span.set_attribute("ai.latency.overhead.ms", result["overhead_ms"])
+
         # --- Emit metrics (these are what you chart/alert on) ---
         attrs = {"task": task, "model": Config.OLLAMA_MODEL}
         if t.tokens_in_counter:
