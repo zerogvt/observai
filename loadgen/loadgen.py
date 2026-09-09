@@ -67,9 +67,12 @@ def main():
 
         try:
             t0 = time.perf_counter()
+            task = Config.TASK
+            if "summarize" in input_text.lower():
+                task = "summarize"
             resp = session.post(
                 Config.TARGET_URL,
-                json={"task": Config.TASK, "input": input_text},
+                json={"task": task, "input": input_text},
                 headers={"X-Request-ID": request_id},
                 timeout=Config.REQUEST_TIMEOUT_S,
             )
