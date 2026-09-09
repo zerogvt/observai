@@ -1064,7 +1064,7 @@
         },
         "enabled": false
       },
-      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| filter isNotNull(ai.latency.eval.ms)\n| fields timestamp, task = ai.task, model = ai.model, tokens_in = ai.tokens.in, tokens_out = ai.tokens.out, tokens_per_sec = ai.tokens_per_sec, load_ms = ai.latency.load.ms, prefill_ms = ai.latency.prompt_eval.ms, generate_ms = ai.latency.eval.ms, transport_ms = ai.latency.overhead.ms, ollama_total_ms = ai.latency.total.ms, wall_ms = ai.latency.ms, done_reason = ai.done_reason\n| sort timestamp desc\n| limit 100",
+      "query": "fetch spans\n| filter span.name == \"inference.generate\"\n| filter in(ai.task, array($Task))\n| filter isNotNull(ai.latency.eval.ms)\n| fields start_time, end_time, task = ai.task, model = ai.model, tokens_in = ai.tokens.in, tokens_out = ai.tokens.out, tokens_per_sec = ai.tokens_per_sec, load_ms = ai.latency.load.ms, prefill_ms = ai.latency.prompt_eval.ms, generate_ms = ai.latency.eval.ms, transport_ms = ai.latency.overhead.ms, ollama_total_ms = ai.latency.total.ms, wall_ms = ai.latency.ms, done_reason = ai.done_reason\n| sort start_time desc\n| limit 100",
       "querySettings": {
         "defaultSamplingRatio": 10,
         "defaultScanLimitGbytes": 500,
