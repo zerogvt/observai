@@ -12,25 +12,19 @@ Most observability tooling treats an LLM service as an opaque HTTP endpoint. obs
 
 ## Architecture
 
-Requests flow through a gateway into an inference service backed by a local Ollama model. Every component emits OpenTelemetry data to a central collector, which forwards it to Dynatrace.
+Requests flow through a gateway into an inference service backed by a local Ollama model. The gateway and inference services emit OpenTelemetry traces and metrics to a central collector, which forwards them to Dynatrace. `loadgen` and Ollama emit no telemetry of their own — loadgen is only a traffic source, and Ollama's timings reach Dynatrace because the inference service reads them out of the API response and puts them on its span.
 
 ```
-        ┌───────────┐      ┌─────────────┐      ┌──────────┐
-client ─▶  gateway   ─────▶   inference   ─────▶  Ollama  
-        └─────┬─────┘      └──────┬──────┘      └──────────┘
-              │                   │
-              │                   │
-              |                   │
-              |                   │ 
-              ▼                   ▼
-        ┌──────────────────────────────┐      ┌──────────────┐
-        │   OpenTelemetry Collector      ─────▶   Dynatrace  
-        └──────────────────────────────┘      └──────────────┘
-                     ▲
-                     │
-              ┌──────────────┐
-              │   loadgen      (optional traffic generator)
-              └──────────────┘
+   client ──┐
+            │      ┌───────────┐      ┌─────────────┐      ┌──────────┐
+            ├─────▶│  gateway  │─────▶│  inference  │─────▶│  Ollama  │
+            │      └─────┬─────┘      └──────┬──────┘      └──────────┘
+  loadgen ──┘ (optional) │                   │
+                         │                   │
+                         ▼                   ▼
+                 ┌──────────────────────────────────┐      ┌─────────────┐
+                 │     OpenTelemetry Collector      │─────▶│  Dynatrace  │
+                 └──────────────────────────────────┘      └─────────────┘
 ```
 
 ## Components
