@@ -59,7 +59,7 @@ The services share a consistent set of engineering conventions:
  export DT_API_TOKEN='your_dynatrace_generated_token_see_next_for_needed_scope'
  export DT_TENANT='your_dynatrace_tenant_see_next_for_example'
 ```
-Dynatrace Api token must have the `Ingest metrics` and `Ingest OpenTelemetry traces` API scopes.
+Dynatrace Api token must have the `Ingest metrics`, `Ingest OpenTelemetry traces` and `Ingest logs` API scopes. (`Ingest logs` is what carries the flagged-chat audit records — without it the Collector accepts them and Dynatrace rejects them, which is quiet unless you read the Collector's own log.)
 
 Dynatrace tenant is the first part of you DT url. E.g. for https://bzu12345.apps.dynatrace.com/ tenant is `bzu12345`
 
@@ -80,6 +80,7 @@ The stack is designed so that observability doubles as a governance surface:
 - **Traces** follow a request end-to-end across gateway → inference → model.
 - **Metrics** capture LLM-specific signals — tokens, latency, and model confidence — not just generic HTTP timings.
 - **Portability** comes from OpenTelemetry: swapping the export backend doesn't require re-instrumenting the code.
+- **Record-keeping** is separate from the traces: flagged prompts and replies are written to an audit sink (see below), because a span should carry counts, not kilobytes of the user's text.
 - **Compliance angle**: the same telemetry that answers "is it fast?" also feeds the questions frameworks like the EU AI Act and ISO/IEC 42001 care about — traceability of inputs and outputs, monitoring over time, and demonstrable operational control.
 
 ## Signals reference
@@ -144,6 +145,70 @@ of it.
 > and renaming one orphans its history, whereas attribute names only affect
 > queries from that point on. Note `observai.tokens.in` therefore still exists
 > as a metric, while the span attribute of the same value is `ai.tokens.in`.
+
+### Audit records — flagged prompts and replies
+
+Traces answer *that* a response was flagged and how it scored. They deliberately
+do not carry the content: `ai.input.chars` is a character count, never the text.
+So the content goes to its own sink — [`gateway/audit.py`](gateway/audit.py)
+emits one OpenTelemetry **log** record per oversight decision, and an auditor
+pivots from span to record on `request_id`.
+
+Attributes are namespaced `audit.*`, continuing the same split (`ai.*` on spans,
+`observai.*` on metric keys). Records reach two places from a single call: the
+OTel handler (→ Collector → Dynatrace — this is the sink of record) and the
+pod's stdout (`kubectl logs` — debug convenience only).
+
+| Attribute | What it is |
+|-----------|------------|
+| `audit.event.type` | Always `observai.oversight.audit`. The routing key the dashboard tile and any OpenPipeline rule match on |
+| `audit.schema.version` | Field-set version. An audit record outlives the code that wrote it, so it says which shape it is |
+| `audit.request_id` | The join key — same value as `request.id` on the spans and in the HTTP response |
+| `audit.trace_id` / `audit.span_id` | Hex ids of the `gateway.handle_prompt` span. Also set natively on the log record, so backend correlation works either way |
+| `audit.flagged` | The verdict |
+| `audit.reasons` / `audit.reasons.text` | Why, as a list and as the `"; "`-joined string that matches `ai.oversight.reasons` |
+| `audit.task` / `audit.model` | |
+| `audit.confidence` / `audit.confidence.signals` | The score and every rule that moved it |
+| `audit.done_reason`, `audit.latency.ms`, `audit.tokens.in` / `.out`, `audit.tokens_per_sec` | Reported by the inference service; the gateway used to receive these and drop them |
+| `audit.content.mode` | `text` \| `hash` \| `omitted:not_flagged` \| `omitted:disabled` — *why* content is or isn't present, recorded rather than inferred |
+| `audit.prompt` / `audit.response` | The text, truncated at `AUDIT_MAX_TEXT_CHARS` |
+| `audit.prompt.chars` / `audit.response.chars` | Full lengths, independent of truncation |
+| `audit.prompt.sha256` / `audit.response.sha256` | Digest of the **full** text, computed before truncation — a shortened field still pins the exact bytes reviewed |
+| `ai.audit.sink_error` | On the *span*, not the record: set if the sink threw. The sink is fail-open, so this is how a failure surfaces |
+
+Query it:
+
+```
+fetch logs
+| filter audit.event.type == "observai.oversight.audit"
+| filter audit.flagged == true
+| fields timestamp, audit.request_id, audit.task, audit.confidence,
+         audit.reasons.text, audit.prompt, audit.response, audit.trace_id
+| sort timestamp desc
+```
+
+**Two design choices worth knowing about.**
+
+*A record is written for every decision, not only the flagged ones.* With
+flagged rows alone, "nothing was flagged" and "records went missing" look
+identical, and an auditor has no denominator. Unflagged rows are metadata-only,
+so the extra volume is small; reconcile their count against
+`observai.inference.requests`. Set `AUDIT_RECORD_UNFLAGGED=false` if you'd
+rather not.
+
+*The sink is fail-open.* A broken sink must not turn a good model response into
+an error, so `emit()` swallows its own exceptions, logs them, and marks the span
+with `ai.audit.sink_error`. If your posture is the opposite — no record, no
+answer — raise from `audit.emit()` and invert
+`test_prompt_route_still_answers_when_the_sink_raises`.
+
+> **On retaining prompts and replies.** Free-text prompts are the classic place
+> personal data turns up, and this sink is the one component that stores them.
+> `AUDIT_LOG_CONTENT=false` keeps every field except the text;
+> `AUDIT_HASH_CONTENT=true` keeps only the digests, which still proves *which*
+> bytes were reviewed without retaining them. Records land in the default log
+> bucket unless you route `audit.event.type` to a bucket with its own retention
+> via OpenPipeline — worth doing before calling this record-keeping.
 
 ## Demo-only confidence hack
 
