@@ -17,7 +17,7 @@ Requests flow through a gateway into an inference service backed by a local Olla
 ```
    client ──┐
             │      ┌───────────┐      ┌─────────────┐      ┌──────────┐
-            ├─────▶│  gateway  │─────▶│  inference  │─────▶│  Ollama  │
+            ├─────▶│  gateway  │─────▶│  inference  │─────▶│  Ollama │
             │      └─────┬─────┘      └──────┬──────┘      └──────────┘
   loadgen ──┘ (optional) │                   │
                          │                   │
