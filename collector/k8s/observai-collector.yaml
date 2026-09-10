@@ -71,6 +71,14 @@ data:
           receivers: [otlp]
           processors: [memory_limiter, cumulativetodelta, batch]
           exporters: [otlphttp/dynatrace, debug]
+        # feature: flagged chats sink — the gateway's audit records (prompt,
+        # reply, oversight verdict) arrive as OTLP *logs*, so this pipeline
+        # has to exist or they are silently dropped here. Needs the
+        # `logs.ingest` ("Ingest logs") scope on the Dynatrace token.
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/dynatrace, debug]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -97,7 +105,7 @@ spec:
         # Roll the pods automatically when the config changes. Update this
         # value (or use `kubectl rollout restart`) after editing the ConfigMap,
         # since a mounted ConfigMap change alone doesn't restart the process.
-        observai.config/revision: "1"
+        observai.config/revision: "2"
     spec:
       securityContext:
         runAsNonRoot: true

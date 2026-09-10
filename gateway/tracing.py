@@ -20,20 +20,28 @@ from config import Config
 log = logging.getLogger(__name__)
 
 
-def init_tracing(app):
-    """Set up a tracer provider and auto-instrument Flask + outbound requests.
-
-    Call once, after the Flask app is created. Returns the tracer so the app
-    can open its own manual spans for the AI-specific work.
-    """
-    resource = Resource.create(
+# feature: flagged chats sink — pulled out of init_tracing() so the audit
+# logger in audit.py can attach the *same* Resource to its LoggerProvider.
+# Without this the audit records would arrive at Dynatrace unattributed to the
+# gateway service, which is precisely the correlation an auditor needs.
+def resource() -> Resource:
+    """The OTel Resource identifying this service on every signal it emits."""
+    return Resource.create(
         {
             "service.name": Config.SERVICE_NAME,
             "service.version": Config.SERVICE_VERSION,
             "deployment.environment": Config.ENV,
         }
     )
-    provider = TracerProvider(resource=resource)
+
+
+def init_tracing(app):
+    """Set up a tracer provider and auto-instrument Flask + outbound requests.
+
+    Call once, after the Flask app is created. Returns the tracer so the app
+    can open its own manual spans for the AI-specific work.
+    """
+    provider = TracerProvider(resource=resource())
 
     if Config.OTEL_ENABLED:
         # OTLP/HTTP to the Collector. The SDK appends /v1/traces.

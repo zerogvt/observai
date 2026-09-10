@@ -17,6 +17,7 @@ gateway/
   tracing.py         # OpenTelemetry setup (OTLP -> Collector -> Dynatrace)
   validation.py      # request validation (unit-testable, no Flask deps)
   oversight.py       # human-oversight hook (the governance-aware part)
+  audit.py           # audit sink for flagged prompts/replies (OTel logs)
   mock_inference.py  # throwaway stub so you can run end-to-end now
   requirements.txt
   .env.example
@@ -72,9 +73,22 @@ callers exceed your intended rate.
 decides whether the output should be trusted automatically or flagged for a
 human. It's deliberately simple and rule-based (confidence floor, empty
 output, an explicit `needs_review` signal) so every flag is *explainable* —
-which is the point of oversight. Flagged items are logged via
-`_record_for_review`; swap that for a real review queue / DB table / alert
-channel. The flag is also returned to the caller and recorded on the trace.
+which is the point of oversight. The flag is returned to the caller and
+recorded on the trace. `oversight.py` itself stays free of Flask and of any
+sink — it decides, nothing more — which is why its tests can call
+`review_response` with a bare `SimpleNamespace`.
+
+**Audit sink** — `audit.py` (feature: flagged chats sink). The trace records
+*that* something was flagged; this records *what was said*. One OpenTelemetry
+log record per oversight decision, carrying the prompt, the reply, the reasons
+and the trace/span ids, so an auditor pivots from span to record on
+`request_id`. Attributes are namespaced `audit.*`. Two things to know before
+changing it: a record is written for unflagged decisions too (an auditor needs
+a denominator, so "nothing flagged" can't be confused with "records lost"), and
+the sink is fail-open (a broken sink must not turn a good answer into a 500 —
+failures surface as `ai.audit.sink_error` on the span). Text retention is
+configurable: full text, sha256-only, or off. See the root README's "Audit
+records" section for the field list and the DQL.
 
 ## Notes / next steps
 

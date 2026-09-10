@@ -1076,6 +1076,57 @@
       "type": "data",
       "visualization": "table",
       "visualizationSettings": {}
+    },
+    "35": {
+      "davis": {
+        "davisVisualization": {
+          "isAvailable": true
+        },
+        "enabled": false
+      },
+      "query": "fetch logs\n| filter audit.event.type == \"observai.oversight.audit\"\n| filter audit.flagged == true\n| filter in(audit.task, array($Task))\n| fields\n    timestamp,\n    request_id = audit.request_id,\n    task = audit.task,\n    model = audit.model,\n    confidence = audit.confidence,\n    reasons = audit.reasons.text,\n    prompt = audit.prompt,\n    response = audit.response,\n    content_mode = audit.content.mode,\n    prompt_sha256 = audit.prompt.sha256,\n    response_sha256 = audit.response.sha256,\n    trace_id = audit.trace_id\n| sort timestamp desc\n| limit 200",
+      "querySettings": {
+        "defaultSamplingRatio": 10,
+        "defaultScanLimitGbytes": 500,
+        "enableSampling": false,
+        "maxResultMegaBytes": 10,
+        "maxResultRecords": 1000
+      },
+      "title": "Flagged chats — what was actually asked and answered",
+      "type": "data",
+      "visualization": "table",
+      "visualizationSettings": {
+        "table": {
+          "columnOrder": [
+            "[\"timestamp\"]",
+            "[\"request_id\"]",
+            "[\"task\"]",
+            "[\"model\"]",
+            "[\"confidence\"]",
+            "[\"reasons\"]",
+            "[\"prompt\"]",
+            "[\"response\"]",
+            "[\"content_mode\"]",
+            "[\"prompt_sha256\"]",
+            "[\"response_sha256\"]",
+            "[\"trace_id\"]"
+          ],
+          "linewrapEnabled": true
+        },
+        "unitsOverrides": [
+          {
+            "added": 1757030400000,
+            "baseUnit": "count",
+            "cascade": null,
+            "decimals": 2,
+            "delimiter": false,
+            "displayUnit": null,
+            "identifier": "confidence",
+            "suffix": "",
+            "unitCategory": "unspecified"
+          }
+        ]
+      }
     }
   },
   "variables": [
@@ -1243,67 +1294,73 @@
       "h": 2,
       "w": 24,
       "x": 0,
-      "y": 60
+      "y": 72
     },
     "24": {
       "h": 7,
       "w": 12,
       "x": 0,
-      "y": 62
+      "y": 74
     },
     "25": {
       "h": 7,
       "w": 12,
       "x": 12,
-      "y": 62
+      "y": 74
     },
     "26": {
       "h": 7,
       "w": 12,
       "x": 0,
-      "y": 69
+      "y": 81
     },
     "27": {
       "h": 7,
       "w": 12,
       "x": 12,
-      "y": 69
+      "y": 81
     },
     "28": {
       "h": 7,
       "w": 8,
       "x": 0,
-      "y": 76
+      "y": 88
     },
     "29": {
       "h": 7,
       "w": 16,
       "x": 8,
-      "y": 76
+      "y": 88
     },
     "30": {
       "h": 5,
       "w": 24,
       "x": 0,
-      "y": 100
+      "y": 112
     },
     "31": {
       "h": 2,
       "w": 24,
       "x": 0,
-      "y": 83
+      "y": 95
     },
     "32": {
       "h": 7,
       "w": 24,
       "x": 0,
-      "y": 85
+      "y": 97
     },
     "34": {
       "h": 8,
       "w": 24,
       "x": 0,
-      "y": 92
+      "y": 104
+    },
+    "35": {
+      "h": 12,
+      "w": 24,
+      "x": 0,
+      "y": 60
     }
   },
   "importedWithCode": false,

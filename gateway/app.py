@@ -26,6 +26,7 @@ from config import Config
 from tracing import init_tracing
 from validation import validate_prompt, ValidationError
 from oversight import review_response
+import audit  # feature: flagged chats sink
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +38,10 @@ app = Flask(__name__)
 
 # Tracing first, so the tracer is ready before any request is served.
 tracer = init_tracing(app)
+
+# feature: flagged chats sink — wired after tracing so the audit logger picks
+# up the same OTel Resource (service.name/version/env) as the spans.
+audit.init_audit_logging()
 
 # Rate limiting. Default limit applies to everything; /prompt gets a tighter
 # one. Storage is in-memory by default — fine for a single replica / demo,
@@ -134,7 +139,14 @@ def prompt():
         if oversight.flagged:
             span.set_attribute("ai.oversight.reasons", "; ".join(oversight.reasons))
 
-        # 6) Return the response, annotated so the caller knows whether this
+        # 6) Audit sink. (feature: flagged chats sink)
+        #    The span above carries counts only; the prompt and the reply text
+        #    land here, keyed on request_id and carrying this span's trace id
+        #    so an auditor can pivot between the two. Fail-open — see
+        #    audit.emit().
+        audit.emit(g.request_id, req, result, oversight, span=span)
+
+        # 7) Return the response, annotated so the caller knows whether this
         #    output is auto-trustworthy or pending human review.
         return jsonify(
             request_id=g.request_id,

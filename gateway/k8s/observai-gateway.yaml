@@ -46,6 +46,20 @@ data:
   MAX_INPUT_CHARS: "20000"
   ALLOWED_TASKS: "summarize,chat,classify,extract"
   OVERSIGHT_CONFIDENCE_FLOOR: "0.6"
+
+  # feature: flagged chats sink — audit records for flagged prompts/replies,
+  # exported as OTLP logs to the Collector. Requires the Collector's `logs`
+  # pipeline (see collector/k8s/observai-collector.yaml) and the `logs.ingest`
+  # scope on the Dynatrace token, or the records stop at the Collector.
+  AUDIT_ENABLED: "true"
+  # Write a metadata-only row for unflagged responses too, so an auditor has a
+  # denominator and can tell "nothing was flagged" from "records went missing".
+  AUDIT_RECORD_UNFLAGGED: "true"
+  # Retain the prompt/reply text on flagged rows. Set "false", or turn on
+  # AUDIT_HASH_CONTENT, if this environment sees real user data.
+  AUDIT_LOG_CONTENT: "true"
+  AUDIT_HASH_CONTENT: "false"
+  AUDIT_MAX_TEXT_CHARS: "2000"
 ---
 # Minimal Redis for rate-limit counters. Single replica, persistence disabled:
 # rate-limit windows are ephemeral by nature, so losing them on a restart just

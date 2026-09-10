@@ -7,7 +7,10 @@ requests>=2.31,<3.0
 # counters aren't shared). Not needed if you stick to memory:// storage.
 redis>=5.0,<6.0
 
-# OpenTelemetry (API + SDK + OTLP/HTTP exporter + auto-instrumentation)
+# OpenTelemetry (API + SDK + OTLP/HTTP exporter + auto-instrumentation).
+# The OTLP *log* exporter behind the flagged-chat audit sink ships in the same
+# proto-http package, so the audit feature adds no dependency — but don't drop
+# below these pins, the logs SDK is what audit.py imports.
 opentelemetry-api>=1.24
 opentelemetry-sdk>=1.24
 opentelemetry-exporter-otlp-proto-http>=1.24

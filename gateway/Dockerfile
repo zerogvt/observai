@@ -34,7 +34,9 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 # Copy only what the service needs to run. Dev-only files (tests, mock_inference,
 # .env, README) are excluded via .dockerignore and not copied here.
-COPY app.py config.py tracing.py validation.py oversight.py gunicorn.conf.py ./
+# audit.py: feature: flagged chats sink — listed explicitly like the rest, so
+# a new module has to be added here or the image import-errors at startup.
+COPY app.py config.py tracing.py validation.py oversight.py audit.py gunicorn.conf.py ./
 
 USER appuser
 

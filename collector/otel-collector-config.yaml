@@ -53,3 +53,11 @@ service:
       receivers: [otlp]
       processors: [cumulativetodelta, batch]
       exporters: [otlphttp/dynatrace, debug]
+    # feature: flagged chats sink — the gateway's audit records (prompt, reply,
+    # oversight verdict) arrive as OTLP *logs*, so this pipeline has to exist
+    # or they are silently dropped at the Collector. Needs the `logs.ingest`
+    # ("Ingest logs") scope on the Dynatrace token.
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/dynatrace, debug]
