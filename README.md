@@ -4,7 +4,7 @@ A Kubernetes-native reference stack for instrumenting local LLM inference with O
 
 observAI runs a complete LLM serving pipeline on Kubernetes and instruments every hop — from request ingress to token generation — with OpenTelemetry traces and metrics. Telemetry is exported to Dynatrace, giving you request-level tracing, model performance signals (tokens, latency, confidence), and a foundation for AI governance and EU AI Act–style compliance reporting.
 
-It's built to be run locally on [kubernets on docker desktop](https://www.docker.com/blog/how-to-set-up-a-kubernetes-cluster-on-docker-desktop/) and [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) as a reference project, but the patterns carry over to any Kubernetes cluster.
+It's built to be run locally on [kubernetes on docker desktop](https://www.docker.com/blog/how-to-set-up-a-kubernetes-cluster-on-docker-desktop/) and [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) as a reference project, but the patterns carry over to any Kubernetes cluster.
 
 ## Why
 
